@@ -1,4 +1,12 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, status
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.models.categories import Category as CategoryModel
+from app.schemas import Category as CategorySchema, CategoryCreate
+from app.db_depends import get_db
+from .validators import validate_category
+from .tools import create_object_model, update_object_model
 
 
 router = APIRouter(
@@ -7,33 +15,68 @@ router = APIRouter(
 )
 
 
-@router.get("/")
-async def get_all_categories():
+@router.get("/", response_model=list[CategorySchema])
+async def get_all_categories(db: Session = Depends(get_db)):
     """
-    Возвращает список всех категорий товаров.
+    Возвращает список всех активных категорий.
     """
-    return {"message": "Список всех категорий (заглушка)"}
+    stmt = select(CategoryModel).where(
+        CategoryModel.is_active == True
+    )
+    categories = db.scalars(stmt).all()
+    return categories
 
 
-@router.post("/")
-async def create_category():
+@router.post(
+        "/",
+        response_model=CategorySchema,
+        status_code=status.HTTP_201_CREATED
+)
+async def create_category(
+    category: CategoryCreate,
+    db: Session = Depends(get_db)
+):
     """
     Создаёт новую категорию.
     """
-    return {"message": "Категория создана (заглушка)"}
+    # Проверка существования parent_id, если указан
+    if category.parent_id is not None:
+        validate_category(
+            CategoryModel, category.parent_id, db
+        )
+    db_category = create_object_model(
+        CategoryModel, category.model_dump(), db
+    )
+    return db_category
 
 
-@router.put("/{category_id}")
-async def update_category(category_id: int):
+@router.put("/{category_id}", response_model=CategorySchema)
+async def update_category(
+    category_id: int, category: CategoryCreate, db: Session = Depends(get_db)
+):
     """
     Обновляет категорию по её ID.
     """
-    return {"message": f"Категория с ID {category_id} обновлена (заглушка)"}
+    update_category = validate_category(CategoryModel, category_id, db)
+    # Проверка существования parent_id, если указан
+    if category.parent_id is not None:
+        validate_category(CategoryModel, category.parent_id, db)
+
+    # Обновление категории
+    db_category = update_object_model(
+        CategoryModel, update_category, category.model_dump(), db
+    )
+    return db_category
 
 
-@router.delete("/{category_id}")
-async def delete_category(category_id: int):
+@router.delete("/{category_id}", status_code=status.HTTP_200_OK)
+async def delete_category(category_id: int, db: Session = Depends(get_db)):
     """
-    Удаляет категорию по её ID.
+    Логически удаляет категорию по её ID, устанавливая is_active=False.
     """
-    return {"message": f"Категория с ID {category_id} удалена (заглушка)"}
+    # Проверка существования активной категории
+    update_category = validate_category(CategoryModel, category_id, db)
+    update_object_model(
+            CategoryModel, update_category, {'is_active': False}, db
+        )
+    return {"status": "success", "message": "Категория перестала быть активной"}

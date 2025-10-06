@@ -1,4 +1,17 @@
-from fastapi import APIRouter
+from fastapi import APIRouter, Depends, status
+from sqlalchemy import select
+from sqlalchemy.orm import Session
+
+from app.models.products import Product as ProductModel
+from app.models.categories import Category as CategoryModel
+from app.schemas import Product as ProductSchema, ProductCreate
+from app.db_depends import get_db
+from .validators import validate_category
+from .tools import (
+    create_object_model,
+    update_object_model,
+    get_active_object_model_or_404_and_validate_category
+)
 
 
 # Создаём маршрутизатор для товаров
@@ -8,49 +21,116 @@ router = APIRouter(
 )
 
 
-@router.get("/")
-async def get_all_products():
+@router.get(
+        "/",
+        response_model=list[ProductSchema],
+        status_code=status.HTTP_200_OK
+)
+async def get_all_products(db: Session = Depends(get_db)):
     """
     Возвращает список всех товаров.
     """
-    return {"message": "Список всех товаров (заглушка)"}
+    stmt = select(ProductModel).where(ProductModel.is_active == True)
+    products = db.scalars(stmt).all()
+    return products
 
 
-@router.post("/")
-async def create_product():
+@router.post(
+        "/",
+        response_model=ProductSchema,
+        status_code=status.HTTP_201_CREATED
+)
+async def create_product(
+    product: ProductCreate,
+    db: Session = Depends(get_db)
+):
     """
     Создаёт новый товар.
     """
-    return {"message": "Товар создан (заглушка)"}
+    validate_category(
+        CategoryModel,
+        product.category_id,
+        db)
+    db_product = create_object_model(
+        model=ProductModel,
+        values=product.model_dump(),
+        db=db
+    )
+    return db_product
 
 
-@router.get("/category/{category_id}")
-async def get_products_by_category(category_id: int):
+@router.get(
+        "/category/{category_id}",
+        response_model=list[ProductSchema],
+        status_code=status.HTTP_200_OK
+)
+async def get_products_by_category(
+    category_id: int, db: Session = Depends(get_db)
+):
     """
     Возвращает список товаров в указанной категории по её ID.
     """
-    return {"message": f"Товары в категории {category_id} (заглушка)"}
+    validate_category(
+        CategoryModel,
+        category_id,
+        db)
+    stmt = select(ProductModel).where(
+        ProductModel.is_active == True,
+        ProductModel.category_id == category_id
+    )
+    products = db.scalars(stmt).all()
+    return products
 
 
-@router.get("/{product_id}")
-async def get_product(product_id: int):
+@router.get(
+        "/{product_id}",
+        response_model=ProductSchema,
+        status_code=status.HTTP_200_OK
+)
+async def get_product(product_id: int, db: Session = Depends(get_db)):
     """
     Возвращает детальную информацию о товаре по его ID.
     """
-    return {"message": f"Детали товара {product_id} (заглушка)"}
+    product = get_active_object_model_or_404_and_validate_category(
+        ProductModel, product_id, db, CategoryModel
+    )
+    return product
 
 
-@router.put("/{product_id}")
-async def update_product(product_id: int):
+@router.put(
+        "/{product_id}",
+        response_model=ProductSchema,
+        status_code=status.HTTP_200_OK
+)
+async def update_product(
+    product_id: int,
+    product_update: ProductCreate,
+    db: Session = Depends(get_db)
+):
     """
     Обновляет товар по его ID.
     """
-    return {"message": f"Товар {product_id} обновлён (заглушка)"}
+    product = get_active_object_model_or_404_and_validate_category(
+        ProductModel, product_id, db, CategoryModel
+    )
+    product = update_object_model(
+        ProductModel, product, product_update.model_dump(), db
+    )
+    return product
 
 
-@router.delete("/{product_id}")
-async def delete_product(product_id: int):
+@router.delete(
+        "/{product_id}",
+        status_code=status.HTTP_200_OK
+)
+async def delete_product(product_id: int, db: Session = Depends(get_db)):
     """
     Удаляет товар по его ID.
     """
-    return {"message": f"Товар {product_id} удалён (заглушка)"}
+    product = get_active_object_model_or_404_and_validate_category(
+        ProductModel, product_id, db, CategoryModel
+    )
+    update_object_model(
+        ProductModel, product, {'is_active': False}, db
+    )
+    return {"status": "success", "message": "Product marked as inactive"}
