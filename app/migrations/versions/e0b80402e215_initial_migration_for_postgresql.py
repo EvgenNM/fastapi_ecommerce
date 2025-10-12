@@ -1,8 +1,8 @@
-"""Создание таблиц начало
+"""Initial migration for PostgreSQL
 
-Revision ID: 477695914d29
+Revision ID: e0b80402e215
 Revises: 
-Create Date: 2025-10-03 14:12:06.444025
+Create Date: 2025-10-12 01:08:23.082165
 
 """
 from typing import Sequence, Union
@@ -12,7 +12,7 @@ import sqlalchemy as sa
 
 
 # revision identifiers, used by Alembic.
-revision: str = '477695914d29'
+revision: str = 'e0b80402e215'
 down_revision: Union[str, Sequence[str], None] = None
 branch_labels: Union[str, Sequence[str], None] = None
 depends_on: Union[str, Sequence[str], None] = None
@@ -25,6 +25,8 @@ def upgrade() -> None:
     sa.Column('id', sa.Integer(), nullable=False),
     sa.Column('name', sa.String(length=50), nullable=False),
     sa.Column('is_active', sa.Boolean(), nullable=False),
+    sa.Column('parent_id', sa.Integer(), nullable=True),
+    sa.ForeignKeyConstraint(['parent_id'], ['categories.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
     op.create_table('products',
@@ -35,6 +37,8 @@ def upgrade() -> None:
     sa.Column('image_url', sa.String(length=200), nullable=True),
     sa.Column('stock', sa.Integer(), nullable=False),
     sa.Column('is_active', sa.Boolean(), nullable=False),
+    sa.Column('category_id', sa.Integer(), nullable=False),
+    sa.ForeignKeyConstraint(['category_id'], ['categories.id'], ),
     sa.PrimaryKeyConstraint('id')
     )
     # ### end Alembic commands ###
