@@ -30,7 +30,7 @@ async def get_active_object_model_or_404(model, model_id, db):
     )
     product = await db.scalars(stmt)
     result = product.first()
-    if not product:
+    if result is None:
         raise HTTPException(
                 status_code=404, detail="Product not found"
             )
@@ -40,13 +40,10 @@ async def get_active_object_model_or_404(model, model_id, db):
 async def get_active_object_model_or_404_and_validate_category(
     model, model_id, db, model_category
 ):
-    try:
-        product = await get_active_object_model_or_404(model, model_id, db)
-        await validate_category(
-            category=model_category,
-            category_id=product.category_id,
-            db=db
-        )
-    except:
-        pass
+    product = await get_active_object_model_or_404(model, model_id, db)
+    await validate_category(
+        category=model_category,
+        category_id=product.category_id,
+        db=db
+    )
     return product
