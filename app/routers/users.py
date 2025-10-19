@@ -43,3 +43,11 @@ async def create_user(
     db.add(db_user)
     await db.commit()
     return db_user
+
+
+@router.get('/')
+async def get_users(
+    db: AsyncSession = Depends(get_async_db)
+) -> list[UserSchema]:
+    users = await db.scalars(select(UserModel))
+    return users.all()

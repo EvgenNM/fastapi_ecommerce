@@ -56,6 +56,7 @@ class ProductCreate(BaseModel):
     category_id: int = Field(
         description="ID категории, к которой относится товар"
     )
+    seller_id: int = Field()
 
 
 class Product(ProductCreate):
@@ -69,11 +70,8 @@ class Product(ProductCreate):
     model_config = ConfigDict(from_attributes=True)
 
 
-class UserCreate(BaseModel):
+class BaseUser(BaseModel):
     email: EmailStr = Field(description="Email пользователя")
-    password: str = Field(
-        min_length=8, description="Пароль (минимум 8 символов)"
-    )
     role: str = Field(
         default="buyer",
         pattern="^(buyer|seller)$",
@@ -81,6 +79,12 @@ class UserCreate(BaseModel):
     )
 
 
-class User(UserCreate):
+class UserCreate(BaseUser):
+    password: str = Field(
+        min_length=8, description="Пароль (минимум 8 символов)"
+    )
+
+
+class User(BaseUser):
     id: int
     model_config = ConfigDict(from_attributes=True)
