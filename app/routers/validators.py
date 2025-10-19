@@ -1,8 +1,5 @@
-import asyncio
-
 from fastapi import HTTPException
 from sqlalchemy import select
-from sqlalchemy.ext.asyncio import AsyncSession
 
 
 async def validate_category(category, category_id, db):

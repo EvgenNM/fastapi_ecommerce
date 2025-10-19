@@ -19,5 +19,9 @@ class Product(Base):
     category_id: Mapped[int] = mapped_column(
         ForeignKey("categories.id"), nullable=False
     )
+    seller_id: Mapped[int] = mapped_column(
+        ForeignKey("users.id"), nullable=False
+    )
 
     category: Mapped["Category"] = relationship(back_populates="products")
+    seller: Mapped["User"]= relationship(back_populates="products")
