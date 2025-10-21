@@ -1,9 +1,11 @@
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.auth import get_current_seller
 from app.models.products import Product as ProductModel
 from app.models.categories import Category as CategoryModel
+from app.models.users import User as UserModel
 from app.schemas import Product as ProductSchema, ProductCreate
 from app.db_depends import get_async_db
 from .validators import validate_category
@@ -43,7 +45,8 @@ async def get_all_products(db: AsyncSession = Depends(get_async_db)):
 )
 async def create_product(
     product: ProductCreate,
-    db: AsyncSession = Depends(get_async_db)
+    db: AsyncSession = Depends(get_async_db),
+    current_user: UserModel = Depends(get_current_seller)
 ):
     """
     Создаёт новый товар.
@@ -52,9 +55,11 @@ async def create_product(
         CategoryModel,
         product.category_id,
         db)
+    values = product.model_dump()
+    values.update(seller_id=current_user.id)
     db_product = await create_object_model(
         model=ProductModel,
-        values=product.model_dump(),
+        values=values,
         db=db
     )
     return db_product
@@ -109,7 +114,8 @@ async def get_product(
 async def update_product(
     product_id: int,
     product_update: ProductCreate,
-    db: AsyncSession = Depends(get_async_db)
+    db: AsyncSession = Depends(get_async_db),
+    current_user: UserModel = Depends(get_current_seller)
 ):
     """
     Обновляет товар по его ID.
@@ -117,6 +123,11 @@ async def update_product(
     product = await get_active_object_model_or_404_and_validate_category(
         ProductModel, product_id, db, CategoryModel
     )
+    if product.seller_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only update your own products"
+        )
     product = await update_object_model(
         ProductModel, product, product_update.model_dump(), db
     )
@@ -128,7 +139,9 @@ async def update_product(
         status_code=status.HTTP_200_OK
 )
 async def delete_product(
-    product_id: int, db: AsyncSession = Depends(get_async_db)
+    product_id: int,
+    db: AsyncSession = Depends(get_async_db),
+    current_user: UserModel = Depends(get_current_seller)
 ):
     """
     Удаляет товар по его ID.
@@ -136,6 +149,11 @@ async def delete_product(
     product = await get_active_object_model_or_404_and_validate_category(
         ProductModel, product_id, db, CategoryModel
     )
+    if product.seller_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only delete your own products"
+        )
     await update_object_model(
         ProductModel, product, {'is_active': False}, db
     )

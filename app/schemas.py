@@ -56,7 +56,7 @@ class ProductCreate(BaseModel):
     category_id: int = Field(
         description="ID категории, к которой относится товар"
     )
-    seller_id: int = Field()
+    # seller_id: int = Field()
 
 
 class Product(ProductCreate):
@@ -66,11 +66,15 @@ class Product(ProductCreate):
     """
     id: int = Field(description="Уникальный идентификатор товара")
     is_active: bool = Field(description="Активность товара")
+    seller_id: int = Field()
 
     model_config = ConfigDict(from_attributes=True)
 
 
 class BaseUser(BaseModel):
+    """
+    Базовая модель для валидации юзеров и вывода о них информации
+    """
     email: EmailStr = Field(description="Email пользователя")
     role: str = Field(
         default="buyer",
