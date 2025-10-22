@@ -67,6 +67,7 @@ class Product(ProductCreate):
     id: int = Field(description="Уникальный идентификатор товара")
     is_active: bool = Field(description="Активность товара")
     seller_id: int = Field()
+    # rating: float = Field()
 
     model_config = ConfigDict(from_attributes=True)
 
