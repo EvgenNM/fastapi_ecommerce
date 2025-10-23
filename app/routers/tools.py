@@ -23,7 +23,9 @@ async def update_object_model(model, object_model, values, db):
     return object_model
 
 
-async def get_active_object_model_or_404(model, model_id, db):
+async def get_active_object_model_or_404(
+    model, model_id, db, description="Product not found"
+):
     stmt = select(model).where(
         model.id == model_id,
         model.is_active == True
@@ -32,7 +34,7 @@ async def get_active_object_model_or_404(model, model_id, db):
     result = product.first()
     if result is None:
         raise HTTPException(
-                status_code=404, detail="Product not found"
+                status_code=404, detail=description
             )
     return result
 
