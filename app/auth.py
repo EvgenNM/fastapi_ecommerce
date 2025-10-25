@@ -7,12 +7,10 @@ from fastapi import Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 
+import app.constants as c
 from app.config import (
     SECRET_KEY,
-    ALGORITHM,
-    ACCESS_TOKEN_EXPIRE_MINUTES,
-    REFRESH_TOKEN_EXPIRE_DAYS,
-    TOKEN_URL
+    ALGORITHM
 )
 from app.db_depends import get_async_db
 from app.models.users import User as UserModel
@@ -20,13 +18,11 @@ from app.models.users import User as UserModel
 # контекст для хеширования с использованием bcrypt
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl=TOKEN_URL)
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl=c.TOKEN_URL)
 
 
 def hash_password(password: str) -> str:
-    """
-    Преобразует пароль в хеш с использованием bcrypt.
-    """
+    """Преобразует пароль в хеш с использованием bcrypt"""
     return pwd_context.hash(password)
 
 
@@ -38,24 +34,22 @@ def verify_password(plain_password: str, hashed_password: str) -> bool:
 
 
 def create_access_token(data: dict):
-    """
-    Создаёт JWT с payload (sub, role, id, exp).
-    """
+    """Создаёт JWT"""
+
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + timedelta(
-        minutes=ACCESS_TOKEN_EXPIRE_MINUTES
+        minutes=c.ACCESS_TOKEN_EXPIRE_MINUTES
     )
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 
-def create_refresh_token(data: dict):          # New
-    """
-    Создаёт рефреш-токен с длительным сроком действия.
-    """
+def create_refresh_token(data: dict):
+    """Создаёт рефреш-токен с длительным сроком действия"""
+
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + timedelta(
-        days=REFRESH_TOKEN_EXPIRE_DAYS
+        days=c.REFRESH_TOKEN_EXPIRE_DAYS
     )
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
@@ -65,13 +59,12 @@ async def get_current_user(
         token: str = Depends(oauth2_scheme),
         db: AsyncSession = Depends(get_async_db)
 ):
-    """
-    Проверяет JWT и возвращает пользователя из базы.
-    """
+    """Проверяет JWT и возвращает пользователя из базы"""
+
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
-        detail="Could not validate credentials",
-        headers={"WWW-Authenticate": "Bearer"},
+        detail='Could not validate credentials',
+        headers={'WWW-Authenticate': c.NAME_TOKEN_HEAD},
     )
     try:
         payload = jwt.decode(
@@ -83,8 +76,8 @@ async def get_current_user(
     except jwt.ExpiredSignatureError:
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
-            detail="Token has expired",
-            headers={"WWW-Authenticate": "Bearer"},
+            detail='Token has expired',
+            headers={'WWW-Authenticate': c.NAME_TOKEN_HEAD},
         )
     except jwt.PyJWTError:
         raise credentials_exception
@@ -106,10 +99,12 @@ async def get_current_seller(
     """
     Проверяет, что пользователь имеет роль 'seller'.
     """
-    if current_user.role != "seller":
+    if current_user.role != c.USER_NAME_ROLE_SELLER:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only sellers can perform this action"
+            detail=(
+                f'Only {c.USER_NAME_ROLE_SELLER} can perform this action'
+            )
         )
     return current_user
 
@@ -117,9 +112,20 @@ async def get_current_seller(
 async def get_current_buyer(
     current_user: UserModel = Depends(get_current_user)
 ):
-    if current_user.role != 'buyer':
+    if current_user.role != c.USER_NAME_ROLE_BUYER:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail='Only for buyer'
+            detail=f'Only for {c.USER_NAME_ROLE_BUYER}'
+        )
+    return current_user
+
+
+async def get_current_admin(
+    current_user: UserModel = Depends(get_current_user)
+):
+    if current_user.role != c.USER_NAME_ROLE_ADMIN:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f'Only for {c.USER_NAME_ROLE_ADMIN}'
         )
     return current_user

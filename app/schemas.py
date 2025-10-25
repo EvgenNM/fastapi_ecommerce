@@ -3,6 +3,13 @@ from datetime import datetime
 from pydantic import BaseModel, Field, ConfigDict, EmailStr
 from typing import Optional
 
+import app.constants as c
+
+
+class BaseFieldIdIsActive(BaseModel):
+    id: int
+    is_active: bool
+
 
 class CategoryCreate(BaseModel):
     """
@@ -10,24 +17,24 @@ class CategoryCreate(BaseModel):
     Используется в POST и PUT запросах.
     """
     name: str = Field(
-        min_length=3,
-        max_length=50,
-        description="Название категории (3-50 символов)"
+        min_length=c.CATEGORY_NAME_MIN_LENGTCH,
+        max_length=c.CATEGORY_NAME_MAX_LENGTCH,
+        description=(
+            f'Название категории ({c.CATEGORY_NAME_MIN_LENGTCH}-'
+            f'{c.CATEGORY_NAME_MAX_LENGTCH} символов)'
+        )
     )
     parent_id: Optional[int] = Field(
         None,
-        description="ID родительской категории, если есть"
+        description='ID родительской категории, если есть'
     )
 
 
-class Category(CategoryCreate):
+class Category(CategoryCreate, BaseFieldIdIsActive):
     """
     Модель для ответа с данными категории.
     Используется в GET-запросах.
     """
-    id: int = Field(description="Уникальный идентификатор категории")
-    is_active: bool = Field(description="Активность категории")
-
     model_config = ConfigDict(from_attributes=True)
 
 
@@ -37,23 +44,35 @@ class ProductCreate(BaseModel):
     Используется в POST и PUT запросах.
     """
     name: str = Field(
-        min_length=3,
-        max_length=100,
-        description="Название товара (3-100 символов)"
+        min_length=c.PRODUCT_NAME_MIN_LENGTCH,
+        max_length=c.PRODUCT_NAME_MAX_LENGTCH,
+        description=(
+            f'Название товара ({c.PRODUCT_NAME_MIN_LENGTCH}-'
+            f'{c.PRODUCT_NAME_MAX_LENGTCH} символов)'
+        )
     )
     description: Optional[str] = Field(
         None,
-        max_length=500,
-        description="Описание товара (до 500 символов)"
+        max_length=c.PRODUCT_DESCRIPTION_MAX_LENGTCH,
+        description=(
+            'Описание товара (до '
+            f'{c.PRODUCT_DESCRIPTION_MAX_LENGTCH} символов)'
+        )
     )
-    price: float = Field(gt=0, description="Цена товара (больше 0)")
+    price: float = Field(
+        gt=c.PRODUCT_MIN_PRICE,
+        description=f'Цена товара (больше {c.PRODUCT_MIN_PRICE})'
+    )
     image_url: Optional[str] = Field(
         None,
-        max_length=200, description="URL изображения товара"
+        max_length=c.PRODUCT_MAX_LENGTH_IMAGE_URL,
+        description='URL изображения товара'
     )
     stock: int = Field(
-        ge=0,
-        description="Количество товара на складе (0 или больше)"
+        ge=c.PRODUCT_MIN_STOCK,
+        description=(
+            f'Количество товара на складе ({c.PRODUCT_MIN_STOCK} или больше)'
+        )
     )
     category_id: int = Field(
         description="ID категории, к которой относится товар"
@@ -61,14 +80,11 @@ class ProductCreate(BaseModel):
     seller_id: int = Field()
 
 
-class Product(ProductCreate):
+class Product(ProductCreate, BaseFieldIdIsActive):
     """
     Модель для ответа с данными товара.
     Используется в GET-запросах.
     """
-    id: int = Field(description="Уникальный идентификатор товара")
-    is_active: bool = Field(description="Активность товара")
-    seller_id: int = Field()
     rating: Optional[float] = Field(None)
 
     model_config = ConfigDict(from_attributes=True)
@@ -80,35 +96,42 @@ class BaseUser(BaseModel):
     """
     email: EmailStr = Field(description="Email пользователя")
     role: str = Field(
-        default="buyer",
-        pattern="^(buyer|seller)$",
-        description="Роль: 'buyer' или 'seller'"
+        default=c.USER_NAME_ROLE_BUYER,
+        pattern=f'^({c.USER_NAME_ROLE_BUYER}|{c.USER_NAME_ROLE_SELLER})$',
+        description=(
+            f'Роль: "{c.USER_NAME_ROLE_BUYER}" или "{c.USER_NAME_ROLE_SELLER}"'
+        )
     )
 
 
 class UserCreate(BaseUser):
     password: str = Field(
-        min_length=8, description="Пароль (минимум 8 символов)"
+        min_length=c.USER_PASSWORD_MIN_LENGTH,
+        description=f'Пароль (минимум {c.USER_PASSWORD_MIN_LENGTH} символов)'
     )
 
 
-class User(BaseUser):
-    id: int = Field()
+class User(BaseUser, BaseFieldIdIsActive):
     model_config = ConfigDict(from_attributes=True)
 
 
 class ReviewCreate(BaseModel):
 
-    # user_id: int = Field()
     product_id: int = Field()
-    comment: Optional[str] = Field(None)
-    grade: int = Field(ge=1, le=5, description='Оценка от 1 до 5 баллов')
+    comment: Optional[str] = Field(
+        None, max_length=c.REVIEW_COMMENT_MAX_LENGTH
+    )
+    grade: int = Field(
+        ge=c.REVIEW_GRADE_MIN_VALUE,
+        le=c.REVIEW_GRADE_MAX_VALUE,
+        description=(
+            f'Оценка от {c.REVIEW_GRADE_MIN_VALUE} до '
+            f'{c.REVIEW_GRADE_MAX_VALUE} баллов'
+        )
+    )
 
 
-class Review(ReviewCreate):
-
-    id: int = Field()
-    user_id: int = Field()
+class Review(ReviewCreate, BaseFieldIdIsActive):
+    
     comment_date: datetime = Field()
     is_active: bool = Field()
-

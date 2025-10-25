@@ -1,21 +1,19 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
-from sqlalchemy.sql import func
 
-from app.auth import get_current_buyer
+from app.auth import get_current_buyer, get_current_admin
 from app.models.reviews import Review as ReviewModel
 from app.models.products import Product as ProductModel
-from app.models.categories import Category as CategoryModel
 from app.models.users import User as UserModel
 from app.schemas import Review as ReviewSchema, ReviewCreate
 from app.db_depends import get_async_db
-from .validators import validate_category
+from .validators import validate_one_review
 from .tools import (
     create_object_model,
     update_object_model,
     get_active_object_model_or_404,
-    get_active_object_model_or_404_and_validate_category
+    update_grade_product
 )
 
 
@@ -29,7 +27,10 @@ router = APIRouter(
 async def get_reviews(
     db: AsyncSession = Depends(get_async_db)
 ) -> list[ReviewSchema]:
-    reviews_db = await db.scalars(select(ReviewModel))
+    reviews_db = await db.scalars(select(ReviewModel).where(
+        ReviewModel.is_active == True
+    )
+    )
     return reviews_db.all()
 
 
@@ -39,42 +40,63 @@ async def create_review(
     db: AsyncSession = Depends(get_async_db),
     current_buyer: UserModel = Depends(get_current_buyer)
 ) -> ReviewSchema:
-    
+
     # Валидация на наличие активного продукта
     product = await get_active_object_model_or_404(
         ProductModel, review.product_id, db
     )
 
     # Валидация единственности отзыва на товар данного юзера
-    validate_first_review = await db.scalars(select(ReviewModel).where(
-        ReviewModel.user_id == current_buyer.id,
-        ReviewModel.is_active == True
-    )
-    )
-    if validate_first_review.first() is not None:
-        raise HTTPException(
-            status_code=status.HTTP_403_FORBIDDEN,
-            detail='Только один отзыв можно оставить на товар'
-        )
-    
+    await validate_one_review(ReviewModel, current_buyer.id, db)
+
     # Создание нового отзыва
-    values = review.model_dump()
-    values.update(user_id=current_buyer.id)
     new_review = await create_object_model(
         model=ReviewModel,
-        values=values,
+        values=review.model_dump() | {'user_id': current_buyer.id},
         db=db
     )
 
     # Обновление рейтинга товара
-    product_raiting = await db.execute(
-        select(func.avg(ReviewModel.grade)).where(
+    await update_grade_product(product, db)
+
+    return new_review
+
+
+@router.get('/products/{product_id}/reviews/')
+async def get_product_reviews(
+    product_id: int, db: AsyncSession = Depends(get_async_db)
+) -> list[ReviewSchema]:
+
+    product = await get_active_object_model_or_404(
+        ProductModel, product_id, db
+    )
+    reviews_db = await db.scalars(
+        select(ReviewModel).where(
             ReviewModel.product_id == product.id,
             ReviewModel.is_active == True
         )
     )
-    avg_rating = product_raiting.scalar() or 0.0
-    product.rating = avg_rating
-    await db.commit()
+    return reviews_db.all()
 
-    return new_review
+
+@router.delete('/reviews/{review_id}')
+async def delete_review(
+    review_id: int,
+    db: AsyncSession = Depends(get_async_db),
+    admin: UserModel = Depends(get_current_admin)
+) -> dict:
+
+    # Проверка наличия активного отзыва
+    review = await get_active_object_model_or_404(
+        ReviewModel, review_id, db, description='Review not found'
+    )
+
+    product = await get_active_object_model_or_404(
+        ProductModel, review.product_id, db
+    )
+    # Мягкое удаление отзыва
+    await update_object_model(ReviewModel, review, {'is_active': False}, db)
+
+    await update_grade_product(product, db)
+
+    return {"message": "Review deleted"}

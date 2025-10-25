@@ -1,6 +1,8 @@
 from fastapi import HTTPException
 from sqlalchemy import select, update
+from sqlalchemy.sql import func
 
+from app.models.reviews import Review as ReviewModel
 from .validators import validate_category
 
 
@@ -49,3 +51,16 @@ async def get_active_object_model_or_404_and_validate_category(
         db=db
     )
     return product
+
+
+async def update_grade_product(product, db):
+    """Функция обновления рейтинга продукта"""
+    product_raiting = await db.execute(
+        select(func.avg(ReviewModel.grade)).where(
+            ReviewModel.product_id == product.id,
+            ReviewModel.is_active == True
+        )
+    )
+    avg_rating = product_raiting.scalar() or 0.0
+    product.rating = avg_rating
+    await db.commit()

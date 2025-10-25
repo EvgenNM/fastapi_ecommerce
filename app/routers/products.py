@@ -1,4 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi_filter import FilterDepends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -8,6 +9,7 @@ from app.models.categories import Category as CategoryModel
 from app.models.users import User as UserModel
 from app.schemas import Product as ProductSchema, ProductCreate
 from app.db_depends import get_async_db
+from app.filters import ProductFilter
 from .validators import validate_category
 from .tools import (
     create_object_model,
@@ -23,19 +25,25 @@ router = APIRouter(
 )
 
 
-@router.get(
-        "/",
-        response_model=list[ProductSchema],
-        status_code=status.HTTP_200_OK
-)
-async def get_all_products(db: AsyncSession = Depends(get_async_db)):
+@router.get('/', response_model=list[ProductSchema])
+async def get_filter_products(
+    product_filter: ProductFilter = FilterDepends(ProductFilter),
+    page: int = Query(ge=0, default=0),
+    size: int = Query(ge=1, le=100, default=5),
+    db: AsyncSession = Depends(get_async_db)
+):
     """
-    Возвращает список всех товаров.
+    Возвращает список товаров с возможностью фильтрации.
     """
-    stmt = select(ProductModel).where(ProductModel.is_active == True)
-    products = await db.scalars(stmt)
-    result = products.all()
-    return result
+    filter_objects = await db.scalars(product_filter.filter(
+        select(ProductModel).where(
+            ProductModel.is_active == True
+        ).order_by(ProductModel.id)
+    )
+    )
+    offset_min = page * size
+    offset_max = (page + 1) * size
+    return filter_objects.all()[offset_min:offset_max]
 
 
 @router.post(

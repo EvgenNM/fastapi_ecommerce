@@ -17,7 +17,9 @@ from app.auth import (
 
 from .tools import create_object_model
 
-router = APIRouter(prefix="/users", tags=["users"])
+ROUTER_PREFIX_USER = "/users"
+
+router = APIRouter(prefix=ROUTER_PREFIX_USER, tags=["users"])
 
 
 @router.post(
