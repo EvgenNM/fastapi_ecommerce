@@ -1,6 +1,5 @@
 from fastapi import FastAPI
 
-# from app.routers import categories, products
 from app.routers import categories, products, users, reviews
 
 

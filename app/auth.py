@@ -44,7 +44,7 @@ def create_access_token(data: dict):
     expire = datetime.now(timezone.utc) + timedelta(
         minutes=ACCESS_TOKEN_EXPIRE_MINUTES
     )
-    to_encode.update({"exp": expire})
+    to_encode.update({c.TOKEN_DICT_KEY_EXPIRE: expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 
@@ -55,7 +55,7 @@ def create_refresh_token(data: dict):
     expire = datetime.now(timezone.utc) + timedelta(
         days=REFRESH_TOKEN_EXPIRE_DAYS
     )
-    to_encode.update({"exp": expire})
+    to_encode.update({c.TOKEN_DICT_KEY_EXPIRE: expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
 
 
@@ -74,7 +74,7 @@ async def get_current_user(
         payload = jwt.decode(
             token, SECRET_KEY, algorithms=[ALGORITHM]
         )
-        email: str = payload.get("sub")
+        email: str = payload.get(c.TOKEN_DICT_KEY_EMAIL)
         if email is None:
             raise credentials_exception
     except jwt.ExpiredSignatureError:

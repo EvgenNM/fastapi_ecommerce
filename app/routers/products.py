@@ -68,8 +68,6 @@ async def create_product(
         CategoryModel,
         product.category_id,
         db)
-    # values = product.model_dump()
-    # values.update(seller_id=current_user.id)
     db_product = await create_object_model(
         model=ProductModel,
         values=product.model_dump() | {'seller_id': current_user.id},

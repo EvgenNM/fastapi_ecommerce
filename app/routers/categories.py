@@ -1,5 +1,5 @@
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select, func
+from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_current_admin
@@ -38,7 +38,7 @@ async def get_all_categories(db: AsyncSession = Depends(get_async_db)):
 async def create_category(
     category: CategoryCreate,
     db: AsyncSession = Depends(get_async_db),
-    # admin: UserModel = Depends(get_current_admin)
+    admin: UserModel = Depends(get_current_admin)
 ):
     """
     Создаёт новую категорию.
