@@ -5,21 +5,20 @@ from sqlalchemy import select
 from fastapi.security import OAuth2PasswordRequestForm
 
 import app.constants as c
-from app.config import SECRET_KEY, ALGORITHM, NAME_TOKEN_HEAD
-from app.models.users import User as UserModel
-from app.schemas import UserCreate, User as UserSchema
-from app.db_depends import get_async_db
 from app.auth import (
     hash_password,
     verify_password,
     create_access_token,
     create_refresh_token
 )
-from .tools import create_object_model
+from app.config import SECRET_KEY, ALGORITHM, NAME_TOKEN_HEAD
+from app.db_depends import get_async_db
+from app.models.users import User as UserModel
+from app.schemas import UserCreate, User as UserSchema
+from app.service.tools import create_object_model
 
-ROUTER_PREFIX_USER = "/users"
 
-router = APIRouter(prefix=ROUTER_PREFIX_USER, tags=["users"])
+router = APIRouter(prefix='/users', tags=["users"])
 
 
 @router.post(

@@ -5,14 +5,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 import app.constants as c
 from app.auth import get_current_seller
+from app.db_depends import get_async_db
+from app.filters import ProductFilter
 from app.models.products import Product as ProductModel
 from app.models.categories import Category as CategoryModel
 from app.models.users import User as UserModel
 from app.schemas import Product as ProductSchema, ProductCreate
-from app.db_depends import get_async_db
-from app.filters import ProductFilter
-from .validators import validate_category
-from .tools import (
+from app.service.validators import validate_category
+from app.service.tools import (
     create_object_model,
     update_object_model,
     get_active_object_model_or_404_and_validate_category
@@ -41,14 +41,14 @@ async def get_filter_products(
     Возвращает список товаров с возможностью фильтрации.
     """
     filter_objects = await db.scalars(product_filter.filter(
-        select(ProductModel).where(
-            ProductModel.is_active == True
-        ).order_by(ProductModel.id)
+        select(ProductModel)
+        .where(ProductModel.is_active == True)
+        .order_by(ProductModel.id)
+        .offset((page - 1) * size)
+        .limit(size)
     )
     )
-    offset_min = page * size
-    offset_max = (page + 1) * size
-    return filter_objects.all()[offset_min:offset_max]
+    return filter_objects.all()
 
 
 @router.post(

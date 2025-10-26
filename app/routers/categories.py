@@ -3,12 +3,12 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_current_admin
+from app.db_depends import get_async_db
 from app.models.categories import Category as CategoryModel
 from app.models.users import User as UserModel
 from app.schemas import Category as CategorySchema, CategoryCreate
-from app.db_depends import get_async_db
-from .validators import validate_category
-from .tools import create_object_model, update_object_model
+from app.service.validators import validate_category
+from app.service.tools import create_object_model, update_object_model
 
 
 router = APIRouter(
@@ -98,4 +98,7 @@ async def delete_category(
     await update_object_model(
             CategoryModel, update_category, {'is_active': False}, db
         )
-    return {"status": "success", "message": "Категория перестала быть активной"}
+    return {
+        "status": "success",
+        "message": "Категория перестала быть активной"
+    }

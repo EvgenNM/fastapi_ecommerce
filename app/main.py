@@ -2,18 +2,22 @@ from fastapi import FastAPI
 
 from app.routers import categories, products, users, reviews
 
+app = FastAPI()
 
 # Создаём приложение FastAPI
-app = FastAPI(
+app_v1 = FastAPI(
     title="FastAPI Интернет-магазин",
     version="0.1.0",
 )
 
 # Подключаем маршруты категорий
-app.include_router(categories.router)
-app.include_router(products.router)
-app.include_router(users.router)
-app.include_router(reviews.router)
+app_v1.include_router(categories.router)
+app_v1.include_router(products.router)
+app_v1.include_router(users.router)
+app_v1.include_router(reviews.router)
+
+
+app.mount('/v1', app_v1)
 
 
 # Корневой эндпоинт для проверки

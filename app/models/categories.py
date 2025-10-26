@@ -2,17 +2,8 @@ from typing import Optional
 from sqlalchemy import ForeignKey, String, Boolean
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-# Для запуска файла (не видит иначе app)
-# import os
-# import sys
-
-# sys.path.insert(0, os.path.join(os.path.dirname(__file__), '../..'))
-
 import app.constants as c
 from app.database import Base
-
-
-# Проблема с цикличными импортами, Лучше всего все модели в один файл
 
 
 class Category(Base):
@@ -40,11 +31,3 @@ class Category(Base):
         "Category",
         back_populates="parent"
     )
-
-
-# if __name__ == "__main__":
-#     from sqlalchemy.schema import CreateTable
-    # from app.models.products import Product
-
-    # print(CreateTable(Category.__table__))
-    # print(CreateTable(Product.__table__))

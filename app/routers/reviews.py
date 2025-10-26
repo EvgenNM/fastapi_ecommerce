@@ -3,13 +3,13 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import get_current_buyer, get_current_admin
+from app.db_depends import get_async_db
 from app.models.reviews import Review as ReviewModel
 from app.models.products import Product as ProductModel
 from app.models.users import User as UserModel
 from app.schemas import Review as ReviewSchema, ReviewCreate
-from app.db_depends import get_async_db
-from .validators import validate_one_review
-from .tools import (
+from app.service.validators import validate_one_review
+from app.service.tools import (
     create_object_model,
     update_object_model,
     get_active_object_model_or_404,
