@@ -4,7 +4,8 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
 from fastapi.security import OAuth2PasswordRequestForm
 
-from app.config import SECRET_KEY, ALGORITHM
+import app.constants as c
+from app.config import SECRET_KEY, ALGORITHM, NAME_TOKEN_HEAD
 from app.models.users import User as UserModel
 from app.schemas import UserCreate, User as UserSchema
 from app.db_depends import get_async_db
@@ -14,7 +15,6 @@ from app.auth import (
     create_access_token,
     create_refresh_token
 )
-
 from .tools import create_object_model
 
 ROUTER_PREFIX_USER = "/users"
@@ -28,9 +28,7 @@ router = APIRouter(prefix=ROUTER_PREFIX_USER, tags=["users"])
 async def create_user(
     user: UserCreate, db: AsyncSession = Depends(get_async_db)
 ):
-    """
-    Регистрирует нового пользователя с ролью 'buyer' или 'seller'.
-    """
+    """Регистрирует нового пользователя"""
 
     # Проверка уникальности email
     result = await db.scalars(
@@ -53,10 +51,10 @@ async def create_user(
     return db_user
 
 
-@router.get('/')
+@router.get('/', response_model=list[UserSchema])
 async def get_users(
     db: AsyncSession = Depends(get_async_db)
-) -> list[UserSchema]:
+):
     users = await db.scalars(select(UserModel))
     return users.all()
 
@@ -65,7 +63,7 @@ async def get_users(
 async def login(
     form_data: OAuth2PasswordRequestForm = Depends(),
     db: AsyncSession = Depends(get_async_db)
-):
+) -> dict:
     result = await db.scalars(
         select(UserModel).where(
             UserModel.email == form_data.username,
@@ -79,18 +77,26 @@ async def login(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail="Incorrect email or password",
-            headers={"WWW-Authenticate": "Bearer"},
+            headers={"WWW-Authenticate": NAME_TOKEN_HEAD},
         )
     access_token = create_access_token(
-        data={"sub": user.email, "role": user.role, "id": user.id}
+        data={
+            c.TOKEN_DICT_KEY_EMAIL: user.email,
+            c.TOKEN_DICT_KEY_ROLE: user.role,
+            c.TOKEN_DICT_KEY_ID: user.id
+        }
     )
     refresh_token = create_refresh_token(
-        data={"sub": user.email, "role": user.role, "id": user.id}
+        data={
+            c.TOKEN_DICT_KEY_EMAIL: user.email,
+            c.TOKEN_DICT_KEY_ROLE: user.role,
+            c.TOKEN_DICT_KEY_ID: user.id
+        }
     )
     return {
         "access_token": access_token,
         "refresh_token": refresh_token,
-        "token_type": "bearer"
+        "token_type": NAME_TOKEN_HEAD
     }
 
 
@@ -104,13 +110,13 @@ async def refresh_token(
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail="Could not validate refresh token",
-        headers={"WWW-Authenticate": "Bearer"},
+        headers={"WWW-Authenticate": NAME_TOKEN_HEAD},
     )
     try:
         payload = jwt.decode(
             refresh_token, SECRET_KEY, algorithms=[ALGORITHM]
         )
-        email: str = payload.get("sub")
+        email: str = payload.get(c.TOKEN_DICT_KEY_EMAIL)
         if email is None:
             raise credentials_exception
     except jwt.PyJWTError:
@@ -122,6 +128,9 @@ async def refresh_token(
     if user is None:
         raise credentials_exception
     access_token = create_access_token(
-        data={"sub": user.email, "role": user.role, "id": user.id}
+        data={
+            c.TOKEN_DICT_KEY_EMAIL: user.email,
+            c.TOKEN_DICT_KEY_ROLE: user.role,
+            c.TOKEN_DICT_KEY_ID: user.id}
     )
-    return {"access_token": access_token, "token_type": "bearer"}
+    return {"access_token": access_token, "token_type": NAME_TOKEN_HEAD}

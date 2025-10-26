@@ -132,6 +132,6 @@ class ReviewCreate(BaseModel):
 
 
 class Review(ReviewCreate, BaseFieldIdIsActive):
-    
+
     comment_date: datetime = Field()
     is_active: bool = Field()

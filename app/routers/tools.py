@@ -6,11 +6,18 @@ from app.models.reviews import Review as ReviewModel
 from .validators import validate_category
 
 
+async def commit_and_refresh(object_model, db):
+    await db.commit()
+    await db.refresh(object_model)
+    return object_model
+
+
 async def create_object_model(model, values, db):
     db_object = model(**values)
     db.add(db_object)
-    await db.commit()
-    await db.refresh(db_object)
+    # await db.commit()
+    # await db.refresh(db_object)
+    db_object = await commit_and_refresh(db_object, db)
     return db_object
 
 
@@ -20,8 +27,9 @@ async def update_object_model(model, object_model, values, db):
         .where(model.id == object_model.id)
         .values(**values)
     )
-    await db.commit()
-    await db.refresh(object_model)
+    # await db.commit()
+    # await db.refresh(object_model)
+    object_model = await commit_and_refresh(object_model, db)
     return object_model
 
 

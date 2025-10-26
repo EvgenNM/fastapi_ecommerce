@@ -3,6 +3,7 @@ from datetime import datetime, timezone
 from sqlalchemy import ForeignKey, String, Boolean, CheckConstraint
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+import app.constants as c
 from app.database import Base
 
 
@@ -16,7 +17,9 @@ class Review(Base):
     product_id: Mapped[int] = mapped_column(
         ForeignKey("products.id"), nullable=False
     )
-    comment: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    comment: Mapped[str | None] = mapped_column(
+        String(c.REVIEW_COMMENT_MAX_LENGTH), nullable=True
+    )
     comment_date: Mapped[datetime] = mapped_column(default=datetime.now)
     grade: Mapped[int] = mapped_column()
     is_active: Mapped[bool] = mapped_column(Boolean, default=True)
@@ -29,5 +32,8 @@ class Review(Base):
     )
 
     __table_args__ = (
-        CheckConstraint("grade >= 1 AND grade <= 5"),
+        CheckConstraint(
+            f'grade >= {c.REVIEW_GRADE_MIN_VALUE} AND '
+            f'grade <= {c.REVIEW_GRADE_MAX_VALUE}'
+        ),
     )

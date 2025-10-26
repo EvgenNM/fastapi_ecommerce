@@ -23,10 +23,10 @@ router = APIRouter(
 )
 
 
-@router.get('/')
+@router.get('/', response_model=list[ReviewSchema])
 async def get_reviews(
     db: AsyncSession = Depends(get_async_db)
-) -> list[ReviewSchema]:
+):
     reviews_db = await db.scalars(select(ReviewModel).where(
         ReviewModel.is_active == True
     )
@@ -62,10 +62,13 @@ async def create_review(
     return new_review
 
 
-@router.get('/products/{product_id}/reviews/')
+@router.get(
+    '/products/{product_id}/reviews/',
+    response_model=list[ReviewSchema]
+)
 async def get_product_reviews(
     product_id: int, db: AsyncSession = Depends(get_async_db)
-) -> list[ReviewSchema]:
+):
 
     product = await get_active_object_model_or_404(
         ProductModel, product_id, db

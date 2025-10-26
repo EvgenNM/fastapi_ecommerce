@@ -10,7 +10,11 @@ from sqlalchemy import select
 import app.constants as c
 from app.config import (
     SECRET_KEY,
-    ALGORITHM
+    ALGORITHM,
+    TOKEN_URL,
+    ACCESS_TOKEN_EXPIRE_MINUTES,
+    REFRESH_TOKEN_EXPIRE_DAYS,
+    NAME_TOKEN_HEAD
 )
 from app.db_depends import get_async_db
 from app.models.users import User as UserModel
@@ -18,7 +22,7 @@ from app.models.users import User as UserModel
 # контекст для хеширования с использованием bcrypt
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 
-oauth2_scheme = OAuth2PasswordBearer(tokenUrl=c.TOKEN_URL)
+oauth2_scheme = OAuth2PasswordBearer(tokenUrl=TOKEN_URL)
 
 
 def hash_password(password: str) -> str:
@@ -38,7 +42,7 @@ def create_access_token(data: dict):
 
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + timedelta(
-        minutes=c.ACCESS_TOKEN_EXPIRE_MINUTES
+        minutes=ACCESS_TOKEN_EXPIRE_MINUTES
     )
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
@@ -49,7 +53,7 @@ def create_refresh_token(data: dict):
 
     to_encode = data.copy()
     expire = datetime.now(timezone.utc) + timedelta(
-        days=c.REFRESH_TOKEN_EXPIRE_DAYS
+        days=REFRESH_TOKEN_EXPIRE_DAYS
     )
     to_encode.update({"exp": expire})
     return jwt.encode(to_encode, SECRET_KEY, algorithm=ALGORITHM)
@@ -64,7 +68,7 @@ async def get_current_user(
     credentials_exception = HTTPException(
         status_code=status.HTTP_401_UNAUTHORIZED,
         detail='Could not validate credentials',
-        headers={'WWW-Authenticate': c.NAME_TOKEN_HEAD},
+        headers={'WWW-Authenticate': NAME_TOKEN_HEAD},
     )
     try:
         payload = jwt.decode(
@@ -77,7 +81,7 @@ async def get_current_user(
         raise HTTPException(
             status_code=status.HTTP_401_UNAUTHORIZED,
             detail='Token has expired',
-            headers={'WWW-Authenticate': c.NAME_TOKEN_HEAD},
+            headers={'WWW-Authenticate': NAME_TOKEN_HEAD},
         )
     except jwt.PyJWTError:
         raise credentials_exception

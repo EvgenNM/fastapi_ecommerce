@@ -3,6 +3,7 @@ from fastapi_filter import FilterDepends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
+import app.constants as c
 from app.auth import get_current_seller
 from app.models.products import Product as ProductModel
 from app.models.categories import Category as CategoryModel
@@ -18,7 +19,6 @@ from .tools import (
 )
 
 
-# Создаём маршрутизатор для товаров
 router = APIRouter(
     prefix="/products",
     tags=["products"],
@@ -28,8 +28,13 @@ router = APIRouter(
 @router.get('/', response_model=list[ProductSchema])
 async def get_filter_products(
     product_filter: ProductFilter = FilterDepends(ProductFilter),
-    page: int = Query(ge=0, default=0),
-    size: int = Query(ge=1, le=100, default=5),
+    page: int = Query(
+        ge=c.PRODUCT_ROUTER_MIN_PAGE, default=c.PRODUCT_ROUTER_MIN_PAGE),
+    size: int = Query(
+        ge=c.PRODUCT_ROUTER_MIN_SIZE,
+        le=c.PRODUCT_ROUTER_MAX_SIZE,
+        default=c.PRODUCT_ROUTER_DEFAULT_SIZE
+    ),
     db: AsyncSession = Depends(get_async_db)
 ):
     """
@@ -63,11 +68,11 @@ async def create_product(
         CategoryModel,
         product.category_id,
         db)
-    values = product.model_dump()
-    values.update(seller_id=current_user.id)
+    # values = product.model_dump()
+    # values.update(seller_id=current_user.id)
     db_product = await create_object_model(
         model=ProductModel,
-        values=values,
+        values=product.model_dump() | {'seller_id': current_user.id},
         db=db
     )
     return db_product
