@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query
+from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from fastapi_filter import FilterDepends
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -25,7 +25,10 @@ router = APIRouter(
 )
 
 
-@router.get('/', response_model=list[ProductSchema])
+@router.get(
+    '/',
+    response_model=list[ProductSchema]
+)
 async def get_filter_products(
     product_filter: ProductFilter = FilterDepends(ProductFilter),
     page: int = Query(

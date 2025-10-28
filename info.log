@@ -1,0 +1,17 @@
+Log: [46955330-90c7-41cc-bda1-ee5074b4d85b:2025-10-28T21:28:11.243923+0300 - INFO - Successfully accessed / 
+Log: [0f0dbcc5-e890-42e4-974c-5e74a1b411c6:2025-10-28T21:28:17.253510+0300 - INFO - Successfully accessed /api/v1/docs 
+Log: [f449f5a7-60b9-4f79-9bb4-dca3a7e8354a:2025-10-28T21:28:17.376200+0300 - INFO - Successfully accessed /api/v1/openapi.json 
+Log: [538dca2b-5998-40a4-b5f7-22c5483166c2:2025-10-28T21:28:24.482264+0300 - INFO - Successfully accessed /api/v1/products/ 
+Log: [57669d17-490e-43f6-b3b6-b546b2428827:2025-10-28T21:29:21.266871+0300 - WARNING - Request to /api/v1/products/ failed 
+Log: [2380774d-fb88-4d6f-bdbe-74fc5c4d7159:2025-10-28T21:31:25.303854+0300 - WARNING - Request to /feeds/latest/ failed 
+Log: [65b55f9f-ba3f-434f-b199-f72fd1e60e1b:2025-10-28T21:34:38.031171+0300 - INFO - Successfully accessed /api/v1/users/ ]
+Log: [d09bc807-e970-4cba-adf5-271b32a90d14:2025-10-28T21:36:29.464648+0300 - WARNING - Request to /api/v1/reviews/ failed (401) ]
+Log: [295d9df2-c8c4-4cf5-8be7-7e825228b4ca:2025-10-28T21:37:58.779949+0300 - INFO - Successfully accessed /api/v1/users/token]
+Log: [82427138-b5aa-49b9-95af-1b996eab7798:2025-10-28T21:38:29.574916+0300 - WARNING - Request to /api/v1/categories/ failed (403)]
+Log: [cc71e2de-5d4a-48b9-b9cf-0abaeee6fc69:2025-10-28T21:58:02.368936+0300 - INFO - Successfully accessed /]
+Log: [ae4c3250-da9d-42ee-8feb-a200f0f9f217:2025-10-28T21:58:07.974076+0300 - INFO - Successfully accessed /api/v1/docs]
+Log: [30b0f1fa-8f1c-47ea-adb0-31164d5e810a:2025-10-28T21:58:08.101749+0300 - INFO - Successfully accessed /api/v1/openapi.json]
+Log: [bf9d5a13-c6c8-42ab-9b0c-6fec1925080e:2025-10-28T21:58:12.062184+0300 - INFO - Successfully accessed /api/v1/categories/]
+Log: [07748852-12a6-4945-aaac-e5407cec993a:2025-10-28T22:00:58.251175+0300 - INFO - Successfully accessed /api/v1/products/ (200)]
+Log: [e583ce2e-4a40-4a99-94ee-af3b0813b1b6:2025-10-28T22:01:25.667265+0300 - WARNING - Request to /feeds/latest/ failed (404)]
+Log: [4bdcadda-2e80-4bd6-8e73-984209af8fbd:2025-10-28T22:01:27.396630+0300 - INFO - Successfully accessed /api/v1/users/ (201)]
