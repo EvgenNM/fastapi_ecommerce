@@ -38,7 +38,7 @@ async def get_all_categories(db: AsyncSession = Depends(get_async_db)):
 async def create_category(
     category: CategoryCreate,
     db: AsyncSession = Depends(get_async_db),
-    admin: UserModel = Depends(get_current_admin)
+    # admin: UserModel = Depends(get_current_admin)
 ):
     """
     Создаёт новую категорию.
