@@ -2,6 +2,7 @@ import jwt
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy import select
+from sqlalchemy.orm import selectinload
 from fastapi.security import OAuth2PasswordRequestForm
 
 import app.constants as c
@@ -54,7 +55,7 @@ async def create_user(
 async def get_users(
     db: AsyncSession = Depends(get_async_db)
 ):
-    users = await db.scalars(select(UserModel))
+    users = await db.scalars(select(UserModel).options(selectinload(UserModel.profile)))
     return users.all()
 
 

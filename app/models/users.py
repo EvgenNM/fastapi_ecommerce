@@ -3,6 +3,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 import app.constants as c
 from app.database import Base
+from app.models.profiles import Profile
 
 
 class User(Base):
@@ -22,4 +23,8 @@ class User(Base):
     )
     reviews: Mapped[list["Review"]] = relationship(
         "Review", back_populates="user"
+    )
+
+    profile: Mapped["Profile"] = relationship(
+        "Profile", back_populates="user", uselist=False
     )
