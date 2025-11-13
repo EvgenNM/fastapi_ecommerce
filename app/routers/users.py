@@ -10,12 +10,13 @@ from app.auth import (
     hash_password,
     verify_password,
     create_access_token,
-    create_refresh_token
+    create_refresh_token,
+    get_current_user
 )
 from app.config import SECRET_KEY, ALGORITHM, NAME_TOKEN_HEAD
 from app.db_depends import get_async_db
 from app.models.users import User as UserModel
-from app.schemas import UserCreate, User as UserSchema
+from app.schemas import UserCreate, User as UserSchema, UserRead
 from app.service.tools import create_object_model
 
 
@@ -51,12 +52,29 @@ async def create_user(
     return db_user
 
 
-@router.get('/', response_model=list[UserSchema])
+@router.get('/', response_model=list[UserRead])
 async def get_users(
     db: AsyncSession = Depends(get_async_db)
 ):
-    users = await db.scalars(select(UserModel).options(selectinload(UserModel.profile)))
+    users = await db.scalars(select(UserModel).options(
+        selectinload(UserModel.profile)
+        )
+    )
     return users.all()
+
+
+@router.get('/me', response_model=UserRead)
+async def get_users(
+    db: AsyncSession = Depends(get_async_db),
+    user: UserModel = Depends(get_current_user)
+):
+    users = await db.scalars(
+        select(UserModel)
+        .where(UserModel.id == user.id)
+        .options(selectinload(UserModel.profile)
+    )
+    )
+    return users.first()
 
 
 @router.post('/token')

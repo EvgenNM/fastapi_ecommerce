@@ -1,4 +1,5 @@
 from datetime import datetime
+from decimal import Decimal
 
 from pydantic import BaseModel, Field, ConfigDict, EmailStr
 from typing import Optional
@@ -103,24 +104,16 @@ class BaseUser(BaseModel):
         )
     )
 
-# class Profile(Base):
-#     __tablename__ = "profiles"
 
-#     id: Mapped[int] = mapped_column(Integer, primary_key=True)
-#     avatar: Mapped[str | None] = mapped_column(nullable=True)
-#     city: Mapped[str | None] = mapped_column(nullable=True)
-#     country: Mapped[str | None] = mapped_column(nullable=True)
-#     user_id: Mapped[int | None] = mapped_column(
-#         Integer, ForeignKey("users.id"), unique=True, nullable=True
-#     )
-#     user = relationship("User", back_populates="profile")
+class ProfileCreate(BaseModel):
+    avatar: Optional[str] = Field(None, max_length=100)
+    city: Optional[str] = Field(None, max_length=100)
+    country: Optional[str] = Field(None, max_length=100)
+    bio: Optional[str] = Field(None, max_length=1000)
 
 
-class Profile(BaseModel):
-    id: int
-    avatar: Optional[str] = Field(None)
-    city: Optional[str] = Field(None)
-    country: Optional[str] = Field(None)
+class ProfileSchemas(ProfileCreate):
+    model_config = ConfigDict(from_attributes=True)
 
 
 class UserCreate(BaseUser):
@@ -132,7 +125,10 @@ class UserCreate(BaseUser):
 
 class User(BaseUser, BaseFieldIdIsActive):
     model_config = ConfigDict(from_attributes=True)
-    profile: Optional[Profile] = None
+
+
+class UserRead(User):
+    profile: Optional[ProfileSchemas] = None
 
 
 class ReviewCreate(BaseModel):
@@ -155,3 +151,32 @@ class Review(ReviewCreate, BaseFieldIdIsActive):
 
     comment_date: datetime = Field()
     is_active: bool = Field()
+
+# class OrderItem(Base):
+#     __tablename__ = "order_items"
+
+#     order_id: Mapped[int] = mapped_column(
+#         ForeignKey("orders.id"), primary_key=True, index=True
+#     )
+#     product_id: Mapped[int] = mapped_column(
+#         ForeignKey("products.id"), primary_key=True, index=True
+#     )
+
+#     quantity: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+#     price: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
+
+#     order: Mapped["Order"] = relationship(back_populates="items")
+#     product: Mapped["Product"] = relationship(back_populates="items")
+
+
+class OrderItem(BaseModel):
+    model_config = ConfigDict(from_attributes=True)
+
+    order_id: int
+    product_id: int
+
+    quantity: int
+    price: Decimal
+
+    # order:
+    product: Product
