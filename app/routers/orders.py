@@ -27,16 +27,16 @@ router = APIRouter(
     tags=["orders"],
 )
 
-router_read = APIRouter(prefix='/orders_read')
+router_read = APIRouter(prefix='/orders_read', tags=["orders"])
 
 
-@router.post('/')
+@router.post('/', response_model=OrderItemSchemas)
 async def create_order(
     product_id: int,
     buyer: UserModel = Depends(get_current_buyer),
     quantity: int = Query(ge=1, le=100, default=1),
     db: AsyncSession = Depends(get_async_db)
-) -> dict:
+):
     product = await get_active_object_model_or_404(
         ProductModel, product_id, db, description="Product not found"
     )
@@ -44,22 +44,34 @@ async def create_order(
     order = await create_object_model(
         Order, {'total': total, 'buyer_id': buyer.id}, db
     )
-    otder_item = OrderItem(
-        order_id=order.id,
-        product_id=product.id,
-        quantity=quantity,
-        price=product.price
+    new_order_item = await create_object_model(
+        OrderItem,
+        {
+            'order_id': order.id,
+            'product_id': product.id,
+            'quantity': quantity,
+            'price': product.price
+        },
+        db
     )
-    db.add(otder_item)
-    result = await commit_and_refresh(otder_item, db)
-    return {'result': 'пока все норм'}
+    order_item = await db.scalars(select(OrderItem)
+        .where(
+            OrderItem.order_id == new_order_item.order_id,
+            OrderItem.product_id == new_order_item.product_id
+        )
+        .options(selectinload(OrderItem.product))
+        .options(selectinload(OrderItem.order))
+        )
+    return order_item.first()
 
 
 @router_read.get('/', response_model=list[OrderItemSchemas])
 async def list_order_items(
     db: AsyncSession = Depends(get_async_db)
 ):
-    result = await db.scalars(select(OrderItem).options(
-        selectinload(OrderItem.product)))
+    result = await db.scalars(select(OrderItem)
+        .options(selectinload(OrderItem.product))
+        .options(selectinload(OrderItem.order))
+        )
     order_items = result.all()
     return order_items

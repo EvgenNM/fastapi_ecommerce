@@ -152,31 +152,19 @@ class Review(ReviewCreate, BaseFieldIdIsActive):
     comment_date: datetime = Field()
     is_active: bool = Field()
 
-# class OrderItem(Base):
-#     __tablename__ = "order_items"
 
-#     order_id: Mapped[int] = mapped_column(
-#         ForeignKey("orders.id"), primary_key=True, index=True
-#     )
-#     product_id: Mapped[int] = mapped_column(
-#         ForeignKey("products.id"), primary_key=True, index=True
-#     )
-
-#     quantity: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
-#     price: Mapped[Decimal] = mapped_column(Numeric(10, 2), nullable=False)
-
-#     order: Mapped["Order"] = relationship(back_populates="items")
-#     product: Mapped["Product"] = relationship(back_populates="items")
+class OrderSchemas(BaseModel):
+    id: int
+    order_date: datetime
+    total: Decimal
+    buyer_id: int
 
 
 class OrderItem(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
-    order_id: int
-    product_id: int
-
     quantity: int
     price: Decimal
 
-    # order:
+    order: OrderSchemas
     product: Product
