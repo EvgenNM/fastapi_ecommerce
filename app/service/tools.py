@@ -2,6 +2,7 @@ from fastapi import HTTPException
 from sqlalchemy import select, update
 from sqlalchemy.sql import func
 
+from app.models.products import Product as ProductModel
 from app.models.reviews import Review as ReviewModel
 from .validators import validate_category
 
@@ -68,3 +69,34 @@ async def update_grade_product(product, db):
     avg_rating = product_raiting.scalar() or 0.0
     product.rating = avg_rating
     await db.commit()
+
+
+def get_validators_filters(kwargs: dict):
+    if (
+        kwargs.get('min_price') is not None
+        and kwargs.get('max_price') is not None
+        and kwargs['min_price'] > kwargs['max_price']
+    ):
+        raise HTTPException(
+            status_code=400,
+            detail="min_price не может быть больше max_price",
+        )
+    filters = []
+    if kwargs.get('category_id') is not None:
+        filters.append(ProductModel.category_id == kwargs['category_id'])
+    if kwargs.get('min_price') is not None:
+        filters.append(ProductModel.price >= kwargs['min_price'])
+    if kwargs.get('max_price') is not None:
+        filters.append(ProductModel.price <= kwargs['max_price'])
+    if kwargs.get('in_stock') is not None:
+        filters.append(
+            ProductModel.stock > 0
+            if kwargs['in_stock']
+            else
+            ProductModel.stock == 0
+        )
+    if kwargs.get('seller_id', None) is not None:
+        filters.append(ProductModel.seller_id == kwargs['seller_id'])
+    if kwargs.get('is_active') is not None:
+        filters.append(ProductModel.is_active == kwargs['is_active'])
+    return filters
