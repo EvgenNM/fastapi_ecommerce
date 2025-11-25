@@ -1,6 +1,8 @@
 from datetime import datetime
 from decimal import Decimal
+from typing import Annotated
 
+from fastapi import Form
 from pydantic import BaseModel, Field, ConfigDict, EmailStr
 from typing import Optional
 
@@ -78,7 +80,28 @@ class ProductCreate(BaseModel):
     category_id: int = Field(
         description="ID категории, к которой относится товар"
     )
-    seller_id: int = Field()
+    # seller_id: int = Field()
+
+    @classmethod
+    def as_form(
+            cls,
+            name: Annotated[str, Form()],
+            price: Annotated[float, Form()],
+            stock: Annotated[int, Form()],
+            category_id: Annotated[int, Form()],
+            # seller_id: Annotated[int, Form(...)],
+            description: Annotated[Optional[str], Form()] = None,
+            image_url: Annotated[Optional[str], Form()] = None
+    ) -> 'ProductCreate':
+        return cls(
+            name=name,
+            description=description,
+            price=price,
+            image_url=image_url,
+            stock=stock,
+            category_id=category_id,
+            # seller_id=seller_id
+        )
 
 
 class Product(ProductCreate, BaseFieldIdIsActive):
@@ -87,6 +110,7 @@ class Product(ProductCreate, BaseFieldIdIsActive):
     Используется в GET-запросах.
     """
     rating: Optional[float] = Field(None)
+    seller_id: int = Field()
 
     model_config = ConfigDict(from_attributes=True)
 

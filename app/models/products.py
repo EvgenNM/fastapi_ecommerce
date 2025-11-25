@@ -1,4 +1,7 @@
-from sqlalchemy import ForeignKey, String, Boolean, Float, Integer
+from sqlalchemy import (
+    ForeignKey, String, Boolean, Float, Computed, Integer, Index
+)
+from sqlalchemy.dialects.postgresql import TSVECTOR
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 import app.constants as c
@@ -45,4 +48,38 @@ class Product(Base):
         back_populates='product',
         cascade='all, delete-orphan',
         single_parent=True,
+    )
+
+    # вычисляемое поле tsv для поиска
+    # (это встроенный движок полнотекстового поиска, работающий на уровне
+    # базы данных и оптимизированный для высоконагруженных систем)
+    tsv: Mapped[TSVECTOR] = mapped_column(
+        TSVECTOR,
+        # 1) устанавливаем setweight(..., 'A') и setweight(..., 'B').
+        # (PostgreSQL FTS поддерживает 4 уровня весов: A > B > C > D)
+        # 2) tsvector преобразует текст в инвертированный индекс (tsvector).
+        # (Это добавляет поддержку морфологии соответ. языка)
+        # 3) знач. '' позв. при name (description) = NULL исп-ть пустую строку
+        Computed(
+            """
+            setweight(to_tsvector('english', coalesce(name, '')), 'A')
+            ||
+            setweight(to_tsvector('russian', coalesce(name, '')), 'A')
+            ||
+            setweight(to_tsvector('english', coalesce(description, '')), 'B')
+            ||
+            setweight(to_tsvector('russian', coalesce(description, '')), 'B')
+            """,
+            persisted=True,
+        ),
+        nullable=False,
+    )
+
+    # Для поиска
+    # GIN (Generalized Inverted Index) — специализ-й индекс для tsvector.
+    # Скорость: поиск за O(1) даже на миллионах записей
+    # Поддержка: морфология, веса, web-синтаксис
+    # Размер: Довольно не большой (около 20-30% от размера текста)
+    __table_args__ = (
+        Index("ix_products_tsv_gin", "tsv", postgresql_using="gin"),
     )

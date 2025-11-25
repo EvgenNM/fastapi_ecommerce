@@ -1,6 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
 from fastapi_filter import FilterDepends
-from sqlalchemy import func, select
+from sqlalchemy import desc, func, select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
 
 import app.constants as c
@@ -93,6 +93,11 @@ async def get_all_products(
             ),
         seller_id: int | None = Query(
             None, description="ID продавца для фильтрации"),
+        search: str | None = Query(
+            None,
+            min_length=1,
+            description="Поиск по названию/описанию"
+        ),
         db: AsyncSession = Depends(get_async_db),
 ):
     """
@@ -108,19 +113,74 @@ async def get_all_products(
     }
     validators_filters = get_validators_filters(filter_args)
 
+    rank_col = None
+
+    if search:
+        search_value = search.strip()
+        if search_value:
+            # строим два tsquery для одной и той же фразы
+            # websearch_to_tsquery понимает сложные конструкции:
+            # кавычки для точных фраз, OR, - для исключения слов
+            # 'english' и 'russian' - это названия конфигураций текст-го поиска
+            ts_query_en = func.websearch_to_tsquery('english', search_value)
+            ts_query_ru = func.websearch_to_tsquery('russian', search_value)
+
+            # Ищем совпадение в любой конфигурации и добавляем в общий фильтр
+            ts_match_any = or_(
+                # ProductModel.tsv - поле типа tsvector в таблице товаров,
+                # которое содержит предварительно обработанный текст
+                # Оператор @@ - спец. оператор PostgreSQL для проверки
+                # соответствия между tsvector и tsquery
+                ProductModel.tsv.op('@@')(ts_query_en),
+                ProductModel.tsv.op('@@')(ts_query_ru),
+            )
+            validators_filters.append(ts_match_any)
+
+            # Эта часть отвечает за сортировку результатов по релевантности
+            # func.greatest() - выбирает максимальное значение из двух рангов
+            rank_col = func.greatest(
+                # func.ts_rank_cd() - вычисляет ранг (релевантность) между
+                # документом (tsvector) и запросом (tsquery)
+                func.ts_rank_cd(ProductModel.tsv, ts_query_en),
+                func.ts_rank_cd(ProductModel.tsv, ts_query_ru),
+            ).label("rank")
+            # .label("rank") - присв. псевдоним столбцу для дальнейш. использ-я
+
+        # Вариант для поиска по одному языку
+        # ts_query = func.websearch_to_tsquery('english', search_value)
+        # validators_filters.append(ProductModel.tsv.op('@@')(ts_query))
+        # rank_col = func.ts_rank_cd(ProductModel.tsv, ts_query).label("rank")
+
     total_stmt = select(func.count()).select_from(
         ProductModel
-    ).where(ProductModel.is_active == True)
+    ).where(*validators_filters)
+
     total = await db.scalar(total_stmt) or 0
 
-    products_stmt = (
-        select(ProductModel)
-        .where(*validators_filters)
-        .order_by(ProductModel.id)
-        .offset((page - 1) * page_size)
-        .limit(page_size)
-    )
-    items = (await db.scalars(products_stmt)).all()
+    if rank_col is not None:
+        products_stmt = (
+            select(ProductModel, rank_col)
+            .where(*validators_filters)
+            .order_by(desc(rank_col), ProductModel.id)
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
+        result = await db.execute(products_stmt)
+        items = [row[0] for row in result.all()]
+        # сами объекты
+        # при желании можно вернуть ранг в ответе
+        # ranks = [row.rank for row in rows]
+    else:
+        products_stmt = (
+            select(ProductModel)
+            .where(*validators_filters)
+            .order_by(ProductModel.id)
+            .offset((page - 1) * page_size)
+            .limit(page_size)
+        )
+
+        items = (await db.scalars(products_stmt)).all()
+
     return {
         "items": items,
         "total": total,
@@ -135,7 +195,7 @@ async def get_all_products(
         status_code=status.HTTP_201_CREATED
 )
 async def create_product(
-    product: ProductCreate,
+    product: ProductCreate = Depends(ProductCreate.as_form),
     db: AsyncSession = Depends(get_async_db),
     current_user: UserModel = Depends(get_current_seller)
 ):

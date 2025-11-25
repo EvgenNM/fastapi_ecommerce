@@ -29,6 +29,7 @@ MIDDLEWARE_TRUSTED_HOST_ALLOWED_HOSTS = [
 ]
 MIDDLEWARE_GZIP_MINIMUM_SIZE = 500
 
+# По логированию
 LOGGER_FILE = 'info.log'
 LOGGER_FORMAT = 'Log: [{extra[log_id]}:{time} - {level} - {message}]'
 LOGGER_LEVEL = 'INFO'
