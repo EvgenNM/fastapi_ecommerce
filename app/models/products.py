@@ -49,6 +49,10 @@ class Product(Base):
         cascade='all, delete-orphan',
         single_parent=True,
     )
+    cart_items: Mapped[list["CartItem"]] = relationship(
+        "CartItem",
+        back_populates="product", cascade="all, delete-orphan"
+    )
 
     # вычисляемое поле tsv для поиска
     # (это встроенный движок полнотекстового поиска, работающий на уровне

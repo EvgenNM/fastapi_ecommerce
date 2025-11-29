@@ -7,7 +7,9 @@ from fastapi.middleware.trustedhost import TrustedHostMiddleware
 import app.config as conf
 from app.log import log_middleware
 from app.middlewares import TimingMiddleware
-from app.routers import categories, products, users, reviews, profiles, orders
+from app.routers import (
+    categories, products, users, reviews, profiles, orders, carts
+)
 
 app = FastAPI()
 
@@ -26,6 +28,7 @@ app_v1.include_router(products.router_filter_model)
 app_v1.include_router(users.router)
 app_v1.include_router(reviews.router)
 app_v1.include_router(orders.router_read)
+app_v1.include_router(carts.router)
 
 
 app.mount('/api/v1', app_v1)

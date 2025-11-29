@@ -28,3 +28,6 @@ class User(Base):
     profile: Mapped["Profile"] = relationship(
         "Profile", back_populates="user", uselist=False
     )
+    cart_items: Mapped[list["CartItem"]] = relationship(
+        "CartItem", back_populates="user", cascade="all, delete-orphan"
+    )

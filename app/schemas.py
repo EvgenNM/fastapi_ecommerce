@@ -203,3 +203,60 @@ class OrderItem(BaseModel):
 
     order: OrderSchemas
     product: Product
+
+
+class CartItemCreate(BaseModel):
+    product_id: int
+    quantity: int = Field(ge=c.PRODUCT_CART_ITEM_QUANTITY_MIN)
+
+    @classmethod
+    def as_form(
+            cls,
+            product_id: Annotated[int, Form(description="ID товара")],
+            quantity: Annotated[
+                int,
+                Form(description="Количество товара")
+            ] = c.PRODUCT_CART_ITEM_QUANTITY_MIN
+    ) -> 'CartItemCreate':
+        return cls(
+            product_id=product_id,
+            quantity=quantity
+        )
+
+
+class CartItemUpdate(BaseModel):
+    """Модель для обновления количества товара в корзине."""
+    quantity: int = Field(ge=c.PRODUCT_CART_ITEM_QUANTITY_MIN)
+
+    @classmethod
+    def as_form(
+            cls,
+            quantity: Annotated[
+                int,
+                Form(description="Новое количество товара")
+            ] = c.PRODUCT_CART_ITEM_QUANTITY_MIN
+    ) -> 'CartItemUpdate':
+        return cls(
+            quantity=quantity
+        )
+
+
+class CartItem(BaseModel):
+    """Товар в корзине с данными продукта."""
+    id: int = Field(description="ID позиции корзины")
+    quantity: int = Field(ge=1, description="Количество товара")
+    product: Product = Field(description="Информация о товаре")
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class Cart(BaseModel):
+    """Полная информация о корзине пользователя."""
+    user_id: int = Field(..., description="ID пользователя")
+    items: list[CartItem] = Field(
+        default_factory=list, description="Содержимое корзины"
+    )
+    total_quantity: int = Field(ge=0, description="Общее количество товаров")
+    total_price: Decimal = Field(ge=0, description="Общая стоимость товаров")
+
+    model_config = ConfigDict(from_attributes=True)

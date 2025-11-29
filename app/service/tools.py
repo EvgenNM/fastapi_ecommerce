@@ -1,26 +1,31 @@
-from fastapi import HTTPException
+from fastapi import HTTPException, status
 from sqlalchemy import select, update
+from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 from sqlalchemy.sql import func
 
+from app.models.cart_items import CartItem as CartItemModel
 from app.models.products import Product as ProductModel
 from app.models.reviews import Review as ReviewModel
 from .validators import validate_category
 
 
-async def commit_and_refresh(object_model, db):
+async def commit_and_refresh(object_model, db: AsyncSession):
     await db.commit()
     await db.refresh(object_model)
     return object_model
 
 
-async def create_object_model(model, values, db):
+async def create_object_model(model, values, db: AsyncSession):
     db_object = model(**values)
     db.add(db_object)
     db_object = await commit_and_refresh(db_object, db)
     return db_object
 
 
-async def update_object_model(model, object_model, values, db):
+async def update_object_model(
+    model, object_model, values, db: AsyncSession
+):
     await db.execute(
         update(model)
         .where(model.id == object_model.id)
@@ -31,7 +36,7 @@ async def update_object_model(model, object_model, values, db):
 
 
 async def get_active_object_model_or_404(
-    model, model_id, db, description="Product not found"
+    model, model_id, db: AsyncSession, description="Product not found"
 ):
     stmt = select(model).where(
         model.id == model_id,
@@ -47,7 +52,7 @@ async def get_active_object_model_or_404(
 
 
 async def get_active_object_model_or_404_and_validate_category(
-    model, model_id, db, model_category
+    model, model_id, db: AsyncSession, model_category
 ):
     product = await get_active_object_model_or_404(model, model_id, db)
     await validate_category(
@@ -58,7 +63,7 @@ async def get_active_object_model_or_404_and_validate_category(
     return product
 
 
-async def update_grade_product(product, db):
+async def update_grade_product(product, db: AsyncSession):
     """Функция обновления рейтинга продукта"""
     product_raiting = await db.execute(
         select(func.avg(ReviewModel.grade)).where(
@@ -100,3 +105,34 @@ def get_validators_filters(kwargs: dict):
     if kwargs.get('is_active') is not None:
         filters.append(ProductModel.is_active == kwargs['is_active'])
     return filters
+
+
+async def _ensure_product_available(db: AsyncSession, product_id: int) -> None:
+    result = await db.scalars(
+        select(ProductModel).where(
+            ProductModel.id == product_id,
+            ProductModel.is_active == True,
+        )
+    )
+    product = result.first()
+    if not product:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Product not found or inactive",
+        )
+
+
+async def _get_cart_item(
+    db: AsyncSession,
+    user_id: int,
+    product_id: int,
+):
+    result = await db.scalars(
+        select(CartItemModel)
+        .options(selectinload(CartItemModel.product))
+        .where(
+            CartItemModel.user_id == user_id,
+            CartItemModel.product_id == product_id,
+        )
+    )
+    return result.first()
