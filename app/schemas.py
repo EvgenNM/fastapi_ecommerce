@@ -193,6 +193,7 @@ class OrderSchemas(BaseModel):
     order_date: datetime
     total: Decimal
     buyer_id: int
+    status: Optional[str] = Field(None)
 
 
 class OrderItem(BaseModel):

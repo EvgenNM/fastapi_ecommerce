@@ -15,7 +15,7 @@ from app.schemas import (
     CartItemCreate,
     CartItemUpdate,
 )
-from app.service.tools import _ensure_product_available, _get_cart_item
+from app.service.tools import _ensure_product_available, _get_cart_item, get_active_object_model_or_404
 
 
 router = APIRouter(
@@ -67,8 +67,10 @@ async def add_item_to_cart(
     db: AsyncSession = Depends(get_async_db),
     current_user: UserModel = Depends(get_current_user),
 ):
-    await _ensure_product_available(db, payload.product_id)
-
+    # await _ensure_product_available(db, payload.product_id)
+    await get_active_object_model_or_404(
+        ProductModel, payload.product_id, db
+    )
     cart_item = await _get_cart_item(db, current_user.id, payload.product_id)
     if cart_item:
         cart_item.quantity += payload.quantity
@@ -94,8 +96,10 @@ async def update_cart_item(
     db: AsyncSession = Depends(get_async_db),
     current_user: UserModel = Depends(get_current_user),
 ):
-    await _ensure_product_available(db, product_id)
-
+    # await _ensure_product_available(db, product_id)
+    await get_active_object_model_or_404(
+        ProductModel, product_id, db
+    )
     cart_item = await _get_cart_item(db, current_user.id, product_id)
     if not cart_item:
         raise HTTPException(status_code=404, detail="Cart item not found")
