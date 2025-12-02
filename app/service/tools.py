@@ -1,10 +1,14 @@
+from decimal import Decimal
+
 from fastapi import HTTPException, status
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy.sql import func
 
+from app.database import async_session_maker
 from app.models.cart_items import CartItem as CartItemModel
+from app.models.orders import Order, OrderItem
 from app.models.products import Product as ProductModel
 from app.models.reviews import Review as ReviewModel
 from .validators import validate_category
@@ -107,19 +111,19 @@ def get_validators_filters(kwargs: dict):
     return filters
 
 
-async def _ensure_product_available(db: AsyncSession, product_id: int) -> None:
-    result = await db.scalars(
-        select(ProductModel).where(
-            ProductModel.id == product_id,
-            ProductModel.is_active == True,
-        )
-    )
-    product = result.first()
-    if not product:
-        raise HTTPException(
-            status_code=status.HTTP_404_NOT_FOUND,
-            detail="Product not found or inactive",
-        )
+# async def _ensure_product_available(db: AsyncSession, product_id: int) -> None:
+#     result = await db.scalars(
+#         select(ProductModel).where(
+#             ProductModel.id == product_id,
+#             ProductModel.is_active == True,
+#         )
+#     )
+#     product = result.first()
+#     if not product:
+#         raise HTTPException(
+#             status_code=status.HTTP_404_NOT_FOUND,
+#             detail="Product not found or inactive",
+#         )
 
 
 async def _get_cart_item(
@@ -136,3 +140,82 @@ async def _get_cart_item(
         )
     )
     return result.first()
+
+
+async def create_one_order(product_id, quantity, buyer, db):
+    """ Функция по созданию одного заказа"""
+
+    # Валидация и получение продукта по id
+    product = await get_active_object_model_or_404(
+        ProductModel, product_id, db
+    )
+
+    # Проверка наличия соответ. количеста продукта
+    if product.stock < quantity:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Not enough stock for product {product.name}",
+        )
+    price = Decimal(product.price)
+
+    # Валидация цены продукта
+    if price is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Product {product.name} has no price set",
+        )
+    total = quantity * price
+
+    # Создание нового заказа
+    order = await create_object_model(
+        Order, {'total': total, 'buyer_id': buyer.id}, db
+    )
+
+    # Создание записи деталей заказа в промежуточной таблице OrderItem
+    # таблиц Order и Product
+    new_order_item = await create_object_model(
+        OrderItem,
+        {
+            'order_id': order.id,
+            'product_id': product.id,
+            'quantity': quantity,
+            'price': price
+        },
+        db
+    )
+
+    # Обновляем значение количества единиц продукта
+    product.stock -= quantity
+    await db.commit()
+
+    # Получение полной инф-и о заказе, его деталях и продукте заказа
+    order_item = await db.scalars(select(OrderItem)
+        .where(
+            OrderItem.order_id == new_order_item.order_id,
+            OrderItem.product_id == new_order_item.product_id
+        )
+        .options(selectinload(OrderItem.product))
+        .options(selectinload(OrderItem.order))
+        )
+    return order_item.first()
+
+
+async def create_order_with_cart_item(cart_item, buyer):
+    """
+    Функция по созданию одного заказа с исключением
+    конфликта сессий для асинхронного процесса загрузки моделей пачкой
+    """
+
+    quantity = cart_item.quantity
+    product_id = cart_item.product.id
+    async with async_session_maker() as db:
+        order_item = await create_one_order(product_id, quantity, buyer, db)
+    return order_item
+
+
+def get_list_order_item_id_done(done_orders):
+    order_item_id_done = []
+    for order_item in done_orders:
+        if order_item.exception() is None:
+            order_item_id_done.append(int(order_item.get_name()))
+    return order_item_id_done

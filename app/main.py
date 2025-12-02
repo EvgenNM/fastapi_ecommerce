@@ -27,7 +27,7 @@ app_v1.include_router(products.router)
 app_v1.include_router(products.router_filter_model)
 app_v1.include_router(users.router)
 app_v1.include_router(reviews.router)
-app_v1.include_router(orders.router_read)
+app_v1.include_router(orders.router_1)
 app_v1.include_router(carts.router)
 
 
