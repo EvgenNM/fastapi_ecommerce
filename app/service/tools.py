@@ -1,11 +1,14 @@
+import uuid
 from decimal import Decimal
+from pathlib import Path
 
-from fastapi import HTTPException, status
+from fastapi import HTTPException, status, UploadFile, File, Form
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 from sqlalchemy.sql import func
 
+import app.config as conf
 from app.database import async_session_maker
 from app.models.cart_items import CartItem as CartItemModel
 from app.models.orders import Order, OrderItem
@@ -111,21 +114,6 @@ def get_validators_filters(kwargs: dict):
     return filters
 
 
-# async def _ensure_product_available(db: AsyncSession, product_id: int) -> None:
-#     result = await db.scalars(
-#         select(ProductModel).where(
-#             ProductModel.id == product_id,
-#             ProductModel.is_active == True,
-#         )
-#     )
-#     product = result.first()
-#     if not product:
-#         raise HTTPException(
-#             status_code=status.HTTP_404_NOT_FOUND,
-#             detail="Product not found or inactive",
-#         )
-
-
 async def _get_cart_item(
     db: AsyncSession,
     user_id: int,
@@ -214,8 +202,63 @@ async def create_order_with_cart_item(cart_item, buyer):
 
 
 def get_list_order_item_id_done(done_orders):
+    """
+    Функция по извлечению имен из списка успешно завершенных задач
+    от asyncio.wait с преобразованием их в числа
+    """
     order_item_id_done = []
     for order_item in done_orders:
         if order_item.exception() is None:
             order_item_id_done.append(int(order_item.get_name()))
     return order_item_id_done
+
+
+async def save_product_image(file: UploadFile) -> str:
+    """
+    Сохраняет изображение товара и возвращает URL,
+    по которому это изображение будет доступно через веб-сервер
+    """
+
+    # Мы сравниваем MIME-тип, который клиент отправляет
+    # в заголовке Content-Type с жёстко заданным белым списком
+    # из conf.ALLOWED_IMAGE_TYPES
+    if file.content_type not in conf.ALLOWED_IMAGE_TYPES:
+        raise HTTPException(
+            status.HTTP_400_BAD_REQUEST,
+            "Only JPG, PNG or WebP images are allowed"
+        )
+
+    # асинхронно читаем содержимое файла
+    content = await file.read()
+
+    # проверяется размер считанного файла
+    if len(content) > conf.MAX_IMAGE_SIZE:
+        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Image is too large")
+
+    # извлекаем расширение из оригинального имени файла
+    extension = Path(file.filename or "").suffix.lower() or ".jpg"
+
+    # генерируем уникальное имя файла через uuid.uuid4(),
+    # к которому добавляем расширение из переменной
+    file_name = f"{uuid.uuid4()}{extension}"
+    file_path = conf.MEDIA_ROOT / file_name
+
+    # бинарная запись файла на диск
+    file_path.write_bytes(content)
+
+    return (
+        f'/{conf.DIRECTORY_USER_CONTENT}/{conf.DIRECTORY_IMAGE_PRODUCTS}'
+        f'/{file_name}'
+    )
+
+
+def remove_product_image(url: str | None) -> None:
+    """
+    Удаляет файл изображения, если он существует.
+    """
+    if not url:
+        return
+    relative_path = url.lstrip("/")
+    file_path = conf.BASE_DIR / relative_path
+    if file_path.exists():
+        file_path.unlink()

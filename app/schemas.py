@@ -66,11 +66,11 @@ class ProductCreate(BaseModel):
         gt=c.PRODUCT_MIN_PRICE,
         description=f'Цена товара (больше {c.PRODUCT_MIN_PRICE})'
     )
-    image_url: Optional[str] = Field(
-        None,
-        max_length=c.PRODUCT_MAX_LENGTH_IMAGE_URL,
-        description='URL изображения товара'
-    )
+    # image_url: Optional[str] = Field(
+    #     None,
+    #     max_length=c.PRODUCT_MAX_LENGTH_IMAGE_URL,
+    #     description='URL изображения товара'
+    # )
     stock: int = Field(
         ge=c.PRODUCT_MIN_STOCK,
         description=(
@@ -91,13 +91,13 @@ class ProductCreate(BaseModel):
             category_id: Annotated[int, Form()],
             # seller_id: Annotated[int, Form(...)],
             description: Annotated[Optional[str], Form()] = None,
-            image_url: Annotated[Optional[str], Form()] = None
+            # image_url: Annotated[Optional[str], Form()] = None
     ) -> 'ProductCreate':
         return cls(
             name=name,
             description=description,
             price=price,
-            image_url=image_url,
+            # image_url=image_url,
             stock=stock,
             category_id=category_id,
             # seller_id=seller_id
@@ -109,6 +109,10 @@ class Product(ProductCreate, BaseFieldIdIsActive):
     Модель для ответа с данными товара.
     Используется в GET-запросах.
     """
+    image_url: Optional[str] = Field(
+        None,
+        description='URL изображения товара'
+    )
     rating: Optional[float] = Field(None)
     seller_id: int = Field()
 

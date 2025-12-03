@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.middleware.httpsredirect import HTTPSRedirectMiddleware
 from fastapi.middleware.gzip import GZipMiddleware
 from fastapi.middleware.trustedhost import TrustedHostMiddleware
+from fastapi.staticfiles import StaticFiles
 
 import app.config as conf
 from app.log import log_middleware
@@ -13,6 +14,18 @@ from app.routers import (
 
 app = FastAPI()
 
+# монтирование подприложения для обслуживания статических файлов
+# P.S.
+# - Все запросы, начинающиеся с /media, будут обр-ся этим подприложением
+# - StaticFiles(directory="media") указывает, что файлы нужно брать
+# из папки media в корне проекта
+# - name="media" это имя маршрута (необяз-ый параметр).
+# Полезно для обратных ссылок через reverse() или в документации
+app.mount(
+    f'/{conf.DIRECTORY_USER_CONTENT}',
+    StaticFiles(directory=conf.DIRECTORY_USER_CONTENT),
+    name=conf.DIRECTORY_USER_CONTENT
+)
 
 app_v1 = FastAPI(
     title="FastAPI Интернет-магазин",

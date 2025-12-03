@@ -1,4 +1,6 @@
 import os
+import uuid
+from pathlib import Path
 from dotenv import load_dotenv
 
 
@@ -41,3 +43,21 @@ LOGGER_COMPRESSION = 'zip'
 LOGGER_ENQUEUE = True
 LOGGER_WARNING_LIST_STATUS_CODE = [401, 402, 403, 404]
 LOGGER_EXCEPTION_STATUS_CODE = 500
+
+# :::МЕДИА:::
+DIRECTORY_USER_CONTENT = 'media'
+DIRECTORY_IMAGE_PRODUCTS = 'products'
+# Абсолютный путь к корню проекта, где Path(__file__) это путь к
+# текущему файлу, а .resolve() абсолютный путь
+# (без .., без символических ссылок) и .parent.parent поднимаемся
+# на 2 уровня вверх, то есть корень проекта
+BASE_DIR = Path(__file__).resolve().parent.parent
+# MEDIA_ROOT - Физическая папка на диске, куда сохраняются все изображения.
+MEDIA_ROOT = BASE_DIR / DIRECTORY_USER_CONTENT / DIRECTORY_IMAGE_PRODUCTS
+# И .mkdir(parents=True, exist_ok=True) создаёт папку, если её нет
+MEDIA_ROOT.mkdir(parents=True, exist_ok=True)
+# ALLOWED_IMAGE_TYPES - Белый список MIME-типов.
+# Защищает от загрузки файлов с не нужным расширением
+ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
+# MAX_IMAGE_SIZE - Ограничение размера изображения
+MAX_IMAGE_SIZE = 2 * 1024 * 1024

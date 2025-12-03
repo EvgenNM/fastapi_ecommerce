@@ -1,4 +1,9 @@
-from fastapi import APIRouter, Depends, HTTPException, status, Query, Request
+from pathlib import Path
+
+from fastapi import (
+    APIRouter, Depends, HTTPException, status,
+    Query, UploadFile, File, Form
+)
 from fastapi_filter import FilterDepends
 from sqlalchemy import desc, func, select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -16,9 +21,15 @@ from app.service.tools import (
     create_object_model,
     update_object_model,
     get_active_object_model_or_404_and_validate_category,
-    get_validators_filters
+    get_validators_filters,
+    save_product_image
 )
 
+BASE_DIR = Path(__file__).resolve().parent.parent.parent
+MEDIA_ROOT = BASE_DIR / "media" / "products"
+MEDIA_ROOT.mkdir(parents=True, exist_ok=True)
+ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
+MAX_IMAGE_SIZE = 2 * 1024 * 1024
 
 router = APIRouter(
     prefix="/products",
@@ -196,6 +207,7 @@ async def get_all_products(
 )
 async def create_product(
     product: ProductCreate = Depends(ProductCreate.as_form),
+    image: UploadFile | None = File(None),
     db: AsyncSession = Depends(get_async_db),
     current_user: UserModel = Depends(get_current_seller)
 ):
@@ -206,9 +218,16 @@ async def create_product(
         CategoryModel,
         product.category_id,
         db)
+
+    # Сохранение изображения (если есть)
+    image_url = await save_product_image(image) if image else None
+
     db_product = await create_object_model(
         model=ProductModel,
-        values=product.model_dump() | {'seller_id': current_user.id},
+        values=product.model_dump() | {
+            'seller_id': current_user.id,
+            'image_url': image_url
+        },
         db=db
     )
     return db_product
