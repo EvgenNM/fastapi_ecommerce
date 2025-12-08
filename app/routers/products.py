@@ -7,11 +7,13 @@ from fastapi import (
 from fastapi_filter import FilterDepends
 from sqlalchemy import desc, func, select, or_
 from sqlalchemy.ext.asyncio import AsyncSession
+from sqlalchemy.orm import selectinload
 
 import app.constants as c
 from app.auth import get_current_seller
 from app.db_depends import get_async_db
 from app.filters import ProductFilter
+from app.models.images import Image
 from app.models.products import Product as ProductModel
 from app.models.categories import Category as CategoryModel
 from app.models.users import User as UserModel
@@ -22,7 +24,8 @@ from app.service.tools import (
     update_object_model,
     get_active_object_model_or_404_and_validate_category,
     get_validators_filters,
-    save_product_image
+    save_product_image,
+    remove_product_image
 )
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -185,6 +188,7 @@ async def get_all_products(
         products_stmt = (
             select(ProductModel)
             .where(*validators_filters)
+            .options(selectinload(ProductModel.images))
             .order_by(ProductModel.id)
             .offset((page - 1) * page_size)
             .limit(page_size)
@@ -208,6 +212,7 @@ async def get_all_products(
 async def create_product(
     product: ProductCreate = Depends(ProductCreate.as_form),
     image: UploadFile | None = File(None),
+    image_others: list[UploadFile] | None = File(default=None),
     db: AsyncSession = Depends(get_async_db),
     current_user: UserModel = Depends(get_current_seller)
 ):
@@ -226,10 +231,44 @@ async def create_product(
         model=ProductModel,
         values=product.model_dump() | {
             'seller_id': current_user.id,
-            'image_url': image_url
+            'image_url': image_url[0] if image_url else None
         },
         db=db
     )
+
+# async def create_object_model(model, values, db: AsyncSession):
+#     db_object = model(**values)
+#     db.add(db_object)
+#     db_object = await commit_and_refresh(db_object, db)
+#     return db_object
+
+    if image_others:
+        for image in image_others:
+            if image:
+                image_url, image_uuid = await save_product_image(image)
+                other_image_product = Image(
+                    title=str(image_uuid),
+                    title_url=image_url,
+                    product_id=db_product.id
+                )
+                db.add(other_image_product)
+        await db.commit()
+    # result = await db.scalars(
+    #     select(CartItemModel)
+    #     .options(selectinload(CartItemModel.product))
+    #     .where(CartItemModel.user_id == current_user.id)
+    #     .order_by(CartItemModel.id)
+    # )
+        product_scalars = await db.scalars(
+            select(ProductModel)
+            .options(selectinload(ProductModel.images))
+            .where(
+                ProductModel.id == db_product.id,
+                ProductModel.is_active == True
+            )
+            .order_by(ProductModel.id)
+        )
+        db_product = product_scalars.first()
     return db_product
 
 
@@ -281,7 +320,8 @@ async def get_product(
 )
 async def update_product(
     product_id: int,
-    product_update: ProductCreate,
+    product_update: ProductCreate = Depends(ProductCreate.as_form),
+    image: UploadFile | None = File(None),
     db: AsyncSession = Depends(get_async_db),
     current_user: UserModel = Depends(get_current_seller)
 ):
@@ -296,8 +336,17 @@ async def update_product(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="You can only update your own products"
         )
+
+    image_url = await save_product_image(image) if image else None
+    if product.image_url:
+        remove_product_image(product.image_url)
     product = await update_object_model(
-        ProductModel, product, product_update.model_dump(), db
+        ProductModel,
+        product,
+        product_update.model_dump() | {
+            'image_url': image_url[0] if image_url else None
+        },
+        db
     )
     return product
 
@@ -325,4 +374,5 @@ async def delete_product(
     await update_object_model(
         ProductModel, product, {'is_active': False}, db
     )
+    remove_product_image(product.image_url)
     return {"status": "success", "message": "Product marked as inactive"}

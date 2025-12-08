@@ -58,6 +58,10 @@ MEDIA_ROOT = BASE_DIR / DIRECTORY_USER_CONTENT / DIRECTORY_IMAGE_PRODUCTS
 MEDIA_ROOT.mkdir(parents=True, exist_ok=True)
 # ALLOWED_IMAGE_TYPES - Белый список MIME-типов.
 # Защищает от загрузки файлов с не нужным расширением
-ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp"}
+ALLOWED_IMAGE_TYPES = {"image/jpeg", "image/png", "image/webp", "image/jpg"}
+ALLOWED_FILE_EXTENSIONS = set(
+    f'.{t.split('/')[1]}' for t in ALLOWED_IMAGE_TYPES
+)
 # MAX_IMAGE_SIZE - Ограничение размера изображения
 MAX_IMAGE_SIZE = 2 * 1024 * 1024
+CHANK_SIZE = 1024 * 1024

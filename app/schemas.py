@@ -104,6 +104,31 @@ class ProductCreate(BaseModel):
         )
 
 
+    # title: Mapped[str] = mapped_column(
+    #     nullable=False
+    # )
+    # title_url: Mapped[str] = mapped_column(
+    #     nullable=False
+    # )
+    # is_active: Mapped[bool] = mapped_column(Boolean, default=True)
+    # product_id: Mapped[int] = mapped_column(
+    #     ForeignKey("products.id"), nullable=False
+    # )
+    # order_date: Mapped[datetime] = mapped_column(
+    #     DateTime(timezone=True), default=func.now(), nullable=False
+    # )
+
+
+class Image(BaseModel):
+    """Информация по дополнительным картинкам продукта"""
+    id: int
+    title: str
+    title_url: str
+    order_date: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class Product(ProductCreate, BaseFieldIdIsActive):
     """
     Модель для ответа с данными товара.
@@ -115,6 +140,7 @@ class Product(ProductCreate, BaseFieldIdIsActive):
     )
     rating: Optional[float] = Field(None)
     seller_id: int = Field()
+    images: Optional[list[Image]] = Field(None)
 
     model_config = ConfigDict(from_attributes=True)
 
@@ -129,6 +155,7 @@ class ProductList(BaseModel):
     page_size: int = Field(ge=1, description="Количество элементов на странице")
 
     model_config = ConfigDict(from_attributes=True)
+
 
 class BaseUser(BaseModel):
     """

@@ -19,8 +19,9 @@ app = FastAPI()
 # - Все запросы, начинающиеся с /media, будут обр-ся этим подприложением
 # - StaticFiles(directory="media") указывает, что файлы нужно брать
 # из папки media в корне проекта
-# - name="media" это имя маршрута (необяз-ый параметр).
-# Полезно для обратных ссылок через reverse() или в документации
+# - name="media" это имя маршрута
+# (необяз-ый параметр. Полезно для обратных ссылок через reverse()
+# или в документации).
 app.mount(
     f'/{conf.DIRECTORY_USER_CONTENT}',
     StaticFiles(directory=conf.DIRECTORY_USER_CONTENT),

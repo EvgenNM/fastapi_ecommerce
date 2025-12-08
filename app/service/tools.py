@@ -1,7 +1,9 @@
+import os
 import uuid
 from decimal import Decimal
 from pathlib import Path
 
+import aiofiles
 from fastapi import HTTPException, status, UploadFile, File, Form
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -31,7 +33,7 @@ async def create_object_model(model, values, db: AsyncSession):
 
 
 async def update_object_model(
-    model, object_model, values, db: AsyncSession
+    model, object_model, values: dict, db: AsyncSession
 ):
     await db.execute(
         update(model)
@@ -213,7 +215,7 @@ def get_list_order_item_id_done(done_orders):
     return order_item_id_done
 
 
-async def save_product_image(file: UploadFile) -> str:
+async def save_product_image(file: UploadFile):
     """
     Сохраняет изображение товара и возвращает URL,
     по которому это изображение будет доступно через веб-сервер
@@ -225,31 +227,79 @@ async def save_product_image(file: UploadFile) -> str:
     if file.content_type not in conf.ALLOWED_IMAGE_TYPES:
         raise HTTPException(
             status.HTTP_400_BAD_REQUEST,
-            "Only JPG, PNG or WebP images are allowed"
+            (
+                f"Only {', '.join(conf.ALLOWED_FILE_EXTENSIONS)} "
+                "images are allowed"
+            )
         )
-
-    # асинхронно читаем содержимое файла
-    content = await file.read()
-
-    # проверяется размер считанного файла
-    if len(content) > conf.MAX_IMAGE_SIZE:
-        raise HTTPException(status.HTTP_400_BAD_REQUEST, "Image is too large")
 
     # извлекаем расширение из оригинального имени файла
     extension = Path(file.filename or "").suffix.lower() or ".jpg"
+    # Валидация расширения из оригинального имени файла
+    if extension not in conf.ALLOWED_FILE_EXTENSIONS:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=(
+                f"Unsupported file extension: '{extension}'. Only "
+                f"{', '.join(conf.ALLOWED_FILE_EXTENSIONS)} are allowed."
+            )
+        )
 
     # генерируем уникальное имя файла через uuid.uuid4(),
     # к которому добавляем расширение из переменной
-    file_name = f"{uuid.uuid4()}{extension}"
+    uuid_name = uuid.uuid4()
+    file_name = f"{uuid_name}{extension}"
     file_path = conf.MEDIA_ROOT / file_name
+    current_size = 0
+    try:
+        # Открываем файл для асинхронной записи на диск
+        async with aiofiles.open(file_path, "wb") as out_file:
+            # Читаем файл по частям
+            while content := await file.read(conf.CHANK_SIZE):
+                # Увеличиваем счетчик прочитанного размера
+                current_size += len(content)
 
+                # --- Логика валидации размера ---
+                if current_size > conf.MAX_IMAGE_SIZE:
+                    # Если текущий размер превысил лимит, немедленно прерываем
+                    # и генерируем исключение HTTPException.
+                    raise HTTPException(
+                        status_code=status.HTTP_413_CONTENT_TOO_LARGE,
+                        # Статус 413 указывает на слишком большой размер
+                        detail=(
+                            f"File too large. Max size is"
+                            f"{conf.MAX_IMAGE_SIZE} B."
+                        )
+                    )
+                # -------------------------------
+                # Асинхронная запись чанка в файл
+                await out_file.write(content)
+
+    except HTTPException:
+        # Если HTTPException был поднят из-за размера файла,
+        # нам нужно удалить частично загруженный файл,
+        # чтобы FastAPI мог его обработать и отправить клиенту.
+        if file_path:
+            os.remove(file_path)  # Удаляем неполный файл
+        raise  # Повторно выбрасываем исключение
+    except Exception as e:
+        # Общая обработка других возможных ошибок (например, проблем с диском)
+        if file_path:
+            os.remove(file_path)  # Удаляем неполный файл
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An unexpected error occurred during file upload: {e}"
+        )
     # бинарная запись файла на диск
-    file_path.write_bytes(content)
+    # file_path.write_bytes(content)
 
-    return (
-        f'/{conf.DIRECTORY_USER_CONTENT}/{conf.DIRECTORY_IMAGE_PRODUCTS}'
-        f'/{file_name}'
-    )
+    return [
+        (
+            f'/{conf.DIRECTORY_USER_CONTENT}/{conf.DIRECTORY_IMAGE_PRODUCTS}'
+            f'/{file_name}'
+        ),
+        uuid_name
+    ]
 
 
 def remove_product_image(url: str | None) -> None:

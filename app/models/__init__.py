@@ -5,8 +5,8 @@ from .users import User
 from .reviews import Review
 from .profiles import Profile
 from .orders import Order, OrderItem
-
+from .images import Image
 __all__ = [
     "Category", "Product", "User", "Review",
-    "Profile", "Order", "OrderItem", "CartItem"
+    "Profile", "Order", "OrderItem", "CartItem", "Image"
 ]
