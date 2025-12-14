@@ -112,6 +112,9 @@ async def checkout_order(
     for task in pending_order:
         task.cancel()
 
+    # ???????????????
+    await asyncio.sleep(0)
+
     # Чистка корзины от успешно оформленных заказов - удаление всех
     # соответствующих моделей заказов корзины (CartItem) у пользователя,
     # оформившего заказ

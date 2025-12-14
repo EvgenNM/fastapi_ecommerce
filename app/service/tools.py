@@ -1,5 +1,6 @@
 import os
 import uuid
+import urllib
 from decimal import Decimal
 from pathlib import Path
 
@@ -215,7 +216,44 @@ def get_list_order_item_id_done(done_orders):
     return order_item_id_done
 
 
-async def save_product_image(file: UploadFile):
+async def create_and_get_link_from_yandex_disk(
+    image,
+    file_name,
+    session
+):
+    payload = {
+        # Загрузить файл с названием filename.txt в папку приложения.
+        'path': f'app:/{file_name}',
+        'overwrite': 'True'
+    }
+    async with session.get(
+        url=conf.REQUEST_UPLOAD_URL,
+        headers=conf.AUTH_HEADERS,
+        params=payload
+    ) as response:
+        upload_url = (await response.json())['href']
+
+    async with session.put(
+        data=image,
+        url=upload_url
+    ) as file_remember:
+        location = file_remember.headers['Location']
+        # Декодировать строку при помощи модуля urllib.
+        location = urllib.parse.unquote(location)
+        # Убрать первую часть расположения файла /disk, 
+        location = location.replace('/disk', '')
+
+    async with session.get(
+        url=conf.DOWNLOAD_LINK_URL,
+        headers=conf.AUTH_HEADERS,
+        params={'path': location}
+    ) as file_link:
+
+        link = (await file_link.json())['href']
+    return link
+
+
+async def save_product_image(file: UploadFile, session=None):
     """
     Сохраняет изображение товара и возвращает URL,
     по которому это изображение будет доступно через веб-сервер
@@ -255,6 +293,7 @@ async def save_product_image(file: UploadFile):
         # Открываем файл для асинхронной записи на диск
         async with aiofiles.open(file_path, "wb") as out_file:
             # Читаем файл по частям
+            chanks = []
             while content := await file.read(conf.CHANK_SIZE):
                 # Увеличиваем счетчик прочитанного размера
                 current_size += len(content)
@@ -271,9 +310,25 @@ async def save_product_image(file: UploadFile):
                             f"{conf.MAX_IMAGE_SIZE} B."
                         )
                     )
+                chanks.append(content)
+            b_image = b''.join(chanks)
+
+            if session is not None:
+                link = await create_and_get_link_from_yandex_disk(
+                    b_image,
+                    file_name,
+                    session
+                )
+            else:
+                await out_file.write(b_image)
                 # -------------------------------
                 # Асинхронная запись чанка в файл
-                await out_file.write(content)
+                # await out_file.write(content)
+                link = (
+                    f'/{conf.DIRECTORY_USER_CONTENT}/'
+                    f'{conf.DIRECTORY_IMAGE_PRODUCTS}'
+                    f'/{file_name}'
+                )
 
     except HTTPException:
         # Если HTTPException был поднят из-за размера файла,
@@ -293,13 +348,7 @@ async def save_product_image(file: UploadFile):
     # бинарная запись файла на диск
     # file_path.write_bytes(content)
 
-    return [
-        (
-            f'/{conf.DIRECTORY_USER_CONTENT}/{conf.DIRECTORY_IMAGE_PRODUCTS}'
-            f'/{file_name}'
-        ),
-        uuid_name
-    ]
+    return [link, file_name]
 
 
 def remove_product_image(url: str | None) -> None:

@@ -65,3 +65,18 @@ ALLOWED_FILE_EXTENSIONS = set(
 # MAX_IMAGE_SIZE - Ограничение размера изображения
 MAX_IMAGE_SIZE = 2 * 1024 * 1024
 CHANK_SIZE = 1024 * 1024
+# Максимальное количество дополнительных картинок (для продукта)
+MAX_COUNT_IMAGES = 9
+
+# Параметры настройки для yandex диска
+API_HOST = 'https://cloud-api.yandex.net/'
+API_VERSION = 'v1'
+DISK_INFO_URL = f'{API_HOST}{API_VERSION}/disk/'
+REQUEST_UPLOAD_URL = f'{DISK_INFO_URL}resources/upload'
+DOWNLOAD_LINK_URL = f'{DISK_INFO_URL}resources/download'
+# "os.environ.get" чуть быстрее "os.getenv"
+DISK_TOKEN = os.environ.get('DISK_TOKEN')
+# Словарь с заголовком авторизации.
+AUTH_HEADERS = {
+    'Authorization': f'OAuth {DISK_TOKEN}'
+}

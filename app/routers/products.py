@@ -1,5 +1,7 @@
+import asyncio
 from pathlib import Path
 
+import aiohttp
 from fastapi import (
     APIRouter, Depends, HTTPException, status,
     Query, UploadFile, File, Form
@@ -10,6 +12,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 import app.constants as c
+import app.config as conf
 from app.auth import get_current_seller
 from app.db_depends import get_async_db
 from app.filters import ProductFilter
@@ -212,7 +215,10 @@ async def get_all_products(
 async def create_product(
     product: ProductCreate = Depends(ProductCreate.as_form),
     image: UploadFile | None = File(None),
-    image_others: list[UploadFile] | None = File(default=None),
+    image_others: list[UploadFile] | None = File(
+        default=None,
+        description=f'Загрузите до {conf.MAX_COUNT_IMAGES} картинок'
+    ),
     db: AsyncSession = Depends(get_async_db),
     current_user: UserModel = Depends(get_current_seller)
 ):
@@ -227,48 +233,78 @@ async def create_product(
     # Сохранение изображения (если есть)
     image_url = await save_product_image(image) if image else None
 
-    db_product = await create_object_model(
-        model=ProductModel,
-        values=product.model_dump() | {
-            'seller_id': current_user.id,
-            'image_url': image_url[0] if image_url else None
-        },
-        db=db
+    # Сбор интересуемых значений (аргументов) модели Product
+    values = product.model_dump() | {
+        'seller_id': current_user.id,
+        'image_url': image_url[0] if image_url else None
+    }
+    db_product = ProductModel(
+        **values
     )
+    db.add(db_product)
 
-# async def create_object_model(model, values, db: AsyncSession):
-#     db_object = model(**values)
-#     db.add(db_object)
-#     db_object = await commit_and_refresh(db_object, db)
-#     return db_object
-
+    # отправляет запрос в БД (получение ID модели Product)
+    await db.flush()
+    # проверка на наличие дополнительных изображений
     if image_others:
-        for image in image_others:
-            if image:
-                image_url, image_uuid = await save_product_image(image)
-                other_image_product = Image(
-                    title=str(image_uuid),
-                    title_url=image_url,
-                    product_id=db_product.id
+        async with aiohttp.ClientSession() as session:
+            # Создание задач для потоковой загрузки
+            tasks = [
+                asyncio.create_task(
+                    save_product_image(image, session),
+                    name=str(number)
                 )
-                db.add(other_image_product)
-        await db.commit()
-    # result = await db.scalars(
-    #     select(CartItemModel)
-    #     .options(selectinload(CartItemModel.product))
-    #     .where(CartItemModel.user_id == current_user.id)
-    #     .order_by(CartItemModel.id)
-    # )
-        product_scalars = await db.scalars(
-            select(ProductModel)
-            .options(selectinload(ProductModel.images))
-            .where(
-                ProductModel.id == db_product.id,
-                ProductModel.is_active == True
-            )
-            .order_by(ProductModel.id)
+                for number, image in enumerate(
+                    image_others[:conf.MAX_COUNT_IMAGES]
+                )
+            ]
+
+            # асинхронные считывание чанками и сохранение файлов
+            done_tasks, pending_tasks = await asyncio.wait(tasks)
+
+            # формирование списка успешно сохраненных файлов
+            saved_images = []
+            for done_task in done_tasks:
+                if done_task.exception() is None:
+                    saved_images.append(done_task)
+
+            if saved_images:
+                saved_images.sort(key=lambda x: int(x.get_name()))
+
+            # страховочное закрытие фоновых не завершенных задач
+            for pending_task in pending_tasks:
+                pending_task.cancel()
+
+            # переключение для завершения задач выше, помеченных на удаление
+            await asyncio.sleep(0)
+
+            # создание объектов таблицы Image при наличии успешно
+            # сохраненных картинок
+            if saved_images:
+                for saved_image in saved_images:
+                    image_url, image_uuid = saved_image.result()
+                    other_image_product = Image(
+                        title=str(image_uuid),
+                        title_url=image_url,
+                        product_id=db_product.id
+                    )
+                    db.add(other_image_product)
+
+    # Сохраняем все изменения в БД
+    await db.commit()
+
+    # получение объекта продукта
+    # и добавленных дополнительных картинок
+    product_scalars = await db.scalars(
+        select(ProductModel)
+        .options(selectinload(ProductModel.images))
+        .where(
+            ProductModel.id == db_product.id,
+            ProductModel.is_active == True
         )
-        db_product = product_scalars.first()
+        .order_by(ProductModel.id)
+    )
+    db_product = product_scalars.first()
     return db_product
 
 
