@@ -231,7 +231,7 @@ async def create_product(
         product.category_id,
         db)
 
-    # Сохранение изображения (если есть)
+    # Сохранение изображения (если есть) на локальной машине
     image_url = await save_product_image(image) if image else None
 
     # Сбор интересуемых значений (аргументов) модели Product
@@ -247,6 +247,7 @@ async def create_product(
     # отправляет запрос в БД (получение ID модели Product)
     await db.flush()
     # проверка на наличие дополнительных изображений
+    # и при их наличии сохранение на yandex диске
     if image_others:
         async with aiohttp.ClientSession() as session:
             # Создание задач для потоковой загрузки
@@ -269,6 +270,7 @@ async def create_product(
                 if done_task.exception() is None:
                     saved_images.append(done_task)
 
+            # Сортировка для получения изначального порядка картинок
             if saved_images:
                 saved_images.sort(key=lambda x: int(x.get_name()))
 
