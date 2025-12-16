@@ -63,7 +63,7 @@ ALLOWED_FILE_EXTENSIONS = set(
     f'.{t.split('/')[1]}' for t in ALLOWED_IMAGE_TYPES
 )
 # MAX_IMAGE_SIZE - Ограничение размера изображения
-MAX_IMAGE_SIZE = 2 * 1024 * 1024
+MAX_IMAGE_SIZE = 4 * 1024 * 1024
 CHANK_SIZE = 1024 * 1024
 # Максимальное количество дополнительных картинок (для продукта)
 MAX_COUNT_IMAGES = 9

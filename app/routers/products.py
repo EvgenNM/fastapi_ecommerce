@@ -28,7 +28,8 @@ from app.service.tools import (
     get_active_object_model_or_404_and_validate_category,
     get_validators_filters,
     save_product_image,
-    remove_product_image
+    remove_product_image,
+    save_product_image_on_disk
 )
 
 BASE_DIR = Path(__file__).resolve().parent.parent.parent
@@ -251,7 +252,7 @@ async def create_product(
             # Создание задач для потоковой загрузки
             tasks = [
                 asyncio.create_task(
-                    save_product_image(image, session),
+                    save_product_image_on_disk(image, session),
                     name=str(number)
                 )
                 for number, image in enumerate(

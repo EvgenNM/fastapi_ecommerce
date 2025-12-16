@@ -5,6 +5,7 @@ from decimal import Decimal
 from pathlib import Path
 
 import aiofiles
+import aiohttp
 from fastapi import HTTPException, status, UploadFile, File, Form
 from sqlalchemy import select, update
 from sqlalchemy.ext.asyncio import AsyncSession
@@ -17,7 +18,12 @@ from app.models.cart_items import CartItem as CartItemModel
 from app.models.orders import Order, OrderItem
 from app.models.products import Product as ProductModel
 from app.models.reviews import Review as ReviewModel
-from .validators import validate_category
+from .validators import (
+    validate_category,
+    validate_content_type,
+    validate_extension,
+    validate_size
+)
 
 
 async def commit_and_refresh(object_model, db: AsyncSession):
@@ -222,25 +228,31 @@ async def create_and_get_link_from_yandex_disk(
     session
 ):
     payload = {
-        # Загрузить файл с названием filename.txt в папку приложения.
+        # Загрузить файл с названием file_name в папку приложения.
         'path': f'app:/{file_name}',
+        # перезапись существующего файла
         'overwrite': 'True'
     }
+    # Получение ссылки для загрузки файла
     async with session.get(
         url=conf.REQUEST_UPLOAD_URL,
+        # Заголовок для авторизации
         headers=conf.AUTH_HEADERS,
+        # Параметры файла
         params=payload
     ) as response:
         upload_url = (await response.json())['href']
 
+    # Процесс сохранения файла
     async with session.put(
         data=image,
         url=upload_url
     ) as file_remember:
+        # Получение расположения файла из Location
         location = file_remember.headers['Location']
-        # Декодировать строку при помощи модуля urllib.
+        # Декодирование строки при помощи модуля urllib.
         location = urllib.parse.unquote(location)
-        # Убрать первую часть расположения файла /disk, 
+        # Убираем первую часть расположения файла /disk,
         location = location.replace('/disk', '')
 
     async with session.get(
@@ -253,82 +265,104 @@ async def create_and_get_link_from_yandex_disk(
     return link
 
 
-async def save_product_image(file: UploadFile, session=None):
+def get_name_file_with_uuid4(extension: str):
     """
-    Сохраняет изображение товара и возвращает URL,
-    по которому это изображение будет доступно через веб-сервер
+    Получение имени файла склеивая сгененрированную
+    послед-ть uuid4() с переданным расширением (extension)
     """
+    uuid_name = uuid.uuid4()
+    file_name = f"{uuid_name}{extension}"
+    return file_name
 
-    # Мы сравниваем MIME-тип, который клиент отправляет
-    # в заголовке Content-Type с жёстко заданным белым списком
-    # из conf.ALLOWED_IMAGE_TYPES
-    if file.content_type not in conf.ALLOWED_IMAGE_TYPES:
-        raise HTTPException(
-            status.HTTP_400_BAD_REQUEST,
-            (
-                f"Only {', '.join(conf.ALLOWED_FILE_EXTENSIONS)} "
-                "images are allowed"
-            )
-        )
+
+def validate_file_and_get_file_name(file: UploadFile):
+    # Валидация MIME-типа, отправляемого клиентом
+    validate_content_type(file)
 
     # извлекаем расширение из оригинального имени файла
     extension = Path(file.filename or "").suffix.lower() or ".jpg"
+
     # Валидация расширения из оригинального имени файла
-    if extension not in conf.ALLOWED_FILE_EXTENSIONS:
+    validate_extension(extension)
+    # Формирование имени файла на основе uuid4() и расширения (extension)
+    file_name = get_name_file_with_uuid4(extension)
+
+    return file_name
+
+
+async def save_product_image_on_disk(
+        file: UploadFile,
+        session: aiohttp.ClientSession
+):
+    """
+    Сохраняет на яндекс диске изображение товара и возвращает
+    URL для его скачивания, а также имя файла с которым оно будет сохранено
+    в объекте модели Image
+    """
+
+    # Формирование имени файла и его валидация
+    file_name = validate_file_and_get_file_name(file)
+    # установка счетчика для измерения размера загружаемого файла
+    current_size = 0
+    # создаем список для чанок
+    chanks = []
+    try:
+        while content := await file.read(conf.CHANK_SIZE):
+            # Увеличиваем счетчик прочитанного размера
+            current_size += len(content)
+            # Валидация размера файла
+            validate_size(current_size)
+            # добавление чанка в список
+            chanks.append(content)
+        # Склейка чанков в бинарный файл
+        b_image = b''.join(chanks)
+        # Сохранение на яндекс диске изображения с получением
+        # ссылки для его скачивания
+        link = await create_and_get_link_from_yandex_disk(
+            b_image,
+            file_name,
+            session
+        )
+    except Exception as e:
+        # Общая обработка возможных ошибок (например, проблем с диском)
         raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=(
-                f"Unsupported file extension: '{extension}'. Only "
-                f"{', '.join(conf.ALLOWED_FILE_EXTENSIONS)} are allowed."
-            )
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail=f"An unexpected error occurred during file upload: {e}"
         )
 
-    # генерируем уникальное имя файла через uuid.uuid4(),
-    # к которому добавляем расширение из переменной
-    uuid_name = uuid.uuid4()
-    file_name = f"{uuid_name}{extension}"
+    return [link, file_name]
+
+
+async def save_product_image(file: UploadFile, session=None):
+    """
+    Сохраняет на локальной машине изображение товара и возвращает
+    URL с которым оно будет доступно для скачивания,
+    а также имя файла с которым оно будет сохранено
+    в объекте модели Image
+    """
+    # Формирование имени файла и его валидация
+    file_name = validate_file_and_get_file_name(file)
+    # Формирование адреса сохранения файла
     file_path = conf.MEDIA_ROOT / file_name
+    # установка счетчика для измерения размера загружаемого файла
     current_size = 0
     try:
         # Открываем файл для асинхронной записи на диск
         async with aiofiles.open(file_path, "wb") as out_file:
             # Читаем файл по частям
-            chanks = []
             while content := await file.read(conf.CHANK_SIZE):
                 # Увеличиваем счетчик прочитанного размера
                 current_size += len(content)
-
-                # --- Логика валидации размера ---
-                if current_size > conf.MAX_IMAGE_SIZE:
-                    # Если текущий размер превысил лимит, немедленно прерываем
-                    # и генерируем исключение HTTPException.
-                    raise HTTPException(
-                        status_code=status.HTTP_413_CONTENT_TOO_LARGE,
-                        # Статус 413 указывает на слишком большой размер
-                        detail=(
-                            f"File too large. Max size is"
-                            f"{conf.MAX_IMAGE_SIZE} B."
-                        )
-                    )
-                chanks.append(content)
-            b_image = b''.join(chanks)
-
-            if session is not None:
-                link = await create_and_get_link_from_yandex_disk(
-                    b_image,
-                    file_name,
-                    session
-                )
-            else:
-                await out_file.write(b_image)
-                # -------------------------------
+                # Валидация размера файла
+                validate_size(current_size)
                 # Асинхронная запись чанка в файл
-                # await out_file.write(content)
-                link = (
-                    f'/{conf.DIRECTORY_USER_CONTENT}/'
-                    f'{conf.DIRECTORY_IMAGE_PRODUCTS}'
-                    f'/{file_name}'
-                )
+                await out_file.write(content)
+            # Формирование готовой ссылки для скачивания
+            link = (
+                f'/{conf.DIRECTORY_USER_CONTENT}/'
+                f'{conf.DIRECTORY_IMAGE_PRODUCTS}'
+                f'/{file_name}'
+            )
 
     except HTTPException:
         # Если HTTPException был поднят из-за размера файла,
@@ -345,8 +379,6 @@ async def save_product_image(file: UploadFile, session=None):
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
             detail=f"An unexpected error occurred during file upload: {e}"
         )
-    # бинарная запись файла на диск
-    # file_path.write_bytes(content)
 
     return [link, file_name]
 
